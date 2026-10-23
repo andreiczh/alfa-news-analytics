@@ -1,0 +1,48 @@
+{
+  "base_url": "https://changellenge.up.railway.app/v1",
+  "source_relative_to_case_root": "sources/api/api-key-instructions.pdf",
+  "source_status": "documented; authenticated models listing and text routes tested",
+  "allowed_models": [
+    "google/gemma-4-26b-a4b-it",
+    "z-ai/glm-5.3-flash",
+    "qwen/qwen3.6-35b-a3b",
+    "deepseek/deepseek-v4.1-flash",
+    "qwen/qwen3-vl-30b-a3b-instruct",
+    "moonshotai/kimi-k2.6"
+  ],
+  "provisional_routes": {
+    "controller": "qwen/qwen3.6-35b-a3b",
+    "analyst": "qwen/qwen3.6-35b-a3b",
+    "verifier": "qwen/qwen3.6-35b-a3b",
+    "source_extraction": "qwen/qwen3.6-35b-a3b",
+    "vision_if_probe_passes": "qwen/qwen3-vl-30b-a3b-instruct"
+  },
+  "route_basis": "observed MVP live tests; not a general quality benchmark",
+  "capabilities": {
+    "chat_completions": "verified_qwen_mvp_and_simple_glm",
+    "json_in_content": "verified_qwen_step_plan_rule_selection_verifier",
+    "response_format_json_object": "pending_probe",
+    "response_format_json_schema": "pending_probe",
+    "native_tools": "pending_probe",
+    "vision": "pending_probe",
+    "streaming": "pending_probe",
+    "usage": "observed_token_counts",
+    "context_window": null,
+    "maximum_output_tokens": null,
+    "input_rub_per_million_tokens": null,
+    "output_rub_per_million_tokens": null
+  },
+  "automatic_model_fallback": false,
+  "tested_models": {
+    "qwen/qwen3.6-35b-a3b": {
+      "mvp": "passed",
+      "reasoning_enabled_false_request": "accepted",
+      "native_tools": "not_tested",
+      "vision": "not_tested"
+    },
+    "z-ai/glm-5.3-flash": {
+      "simple_json": "passed",
+      "full_controller": "truncated_or_timeout"
+    }
+  }
+}

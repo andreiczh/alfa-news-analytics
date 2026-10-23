@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: alfa-business-pulse
+    runtime: python
+    region: frankfurt
+    plan: free
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    buildCommand: pip install --require-hashes -r requirements.lock
+    startCommand: python -m alfa_agent serve
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.14
+      - key: PYTHONPATH
+        value: src
+      - key: ALFA_STATE_DIR
+        value: /tmp/alfa-state
+      - key: ALFA_STORAGE_MODE
+        value: ephemeral_demo
+      - key: ALFA_PUBLIC_DEPLOYMENT
+        value: "1"
+      - key: ALFA_LLM_API_KEY
+        sync: false
+      - key: ALFA_ACCESS_PASSWORD
+        sync: false

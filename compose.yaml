@@ -1,0 +1,27 @@
+services:
+  api:
+    build: .
+    command: python -m uvicorn alfa_agent.api:app --host 0.0.0.0 --port 8765 --no-access-log
+    env_file: .env.local
+    environment:
+      ALFA_PROJECT_DIR: /app
+      ALFA_CASE_DATA_DIR: /case
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - agent-state:/app/var
+      - ../sources/data:/case:ro
+    restart: unless-stopped
+  worker:
+    build: .
+    command: python -m alfa_agent worker
+    env_file: .env.local
+    environment:
+      ALFA_PROJECT_DIR: /app
+      ALFA_CASE_DATA_DIR: /case
+    volumes:
+      - agent-state:/app/var
+      - ../sources/data:/case:ro
+    restart: unless-stopped
+volumes:
+  agent-state:

@@ -1,0 +1,135 @@
+{
+  "generated_at": "2026-10-23T13:48:09.376652+00:00",
+  "scope": "Local MVP: rate news -> company profile -> bank claims -> conditional scenario -> checked role views",
+  "status": "verified_for_described_local_scope",
+  "local_result_url": "http://127.0.0.1:8765/?run=run_40c6da2b00e84315ab97",
+  "automated_tests": {
+    "status": "passed",
+    "tests": 36,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "duration_seconds": 1.184,
+    "evidence": "reports/test-results.xml",
+    "provider": "test_double_only_no_paid_api",
+    "known_warning": "Starlette TestClient/httpx deprecation warning"
+  },
+  "static_checks": {
+    "ruff_check_src_tests": "passed",
+    "node_check_app_js": "passed"
+  },
+  "browser": {
+    "status": "passed",
+    "browser": "Chromium",
+    "headless": false,
+    "url": "http://127.0.0.1:8765/?run=run_40c6da2b00e84315ab97",
+    "checks": [
+      "existing live result rendered",
+      "five tabs",
+      "five distinct actions",
+      "exact scenario amount",
+      "source panel",
+      "JSON download",
+      "390px without horizontal overflow",
+      "no page JavaScript errors"
+    ],
+    "screenshots": [
+      "ui-cfo-desktop.png",
+      "ui-cfo-mobile.png"
+    ]
+  },
+  "visual_review": {
+    "desktop": "reviewed",
+    "mobile_390px": "reviewed",
+    "screenshots": [
+      "ui-cfo-desktop.png",
+      "ui-cfo-mobile.png"
+    ]
+  },
+  "live_runs": [
+    {
+      "scenario": "complete_profile",
+      "run_id": "run_40c6da2b00e84315ab97",
+      "status": "SUCCEEDED",
+      "llm_calls": 4,
+      "tool_calls": 3,
+      "replans": 0,
+      "active_elapsed_ms": 15098,
+      "model_ids": [
+        "qwen/qwen3.6-35b-a3b"
+      ],
+      "role_count": 5,
+      "profile_version": 1,
+      "input_revision": 1,
+      "question_created": false,
+      "answer_accepted": false,
+      "usage_reported_total_tokens": 23176,
+      "is_quality_benchmark": false
+    },
+    {
+      "scenario": "missing_debt_question_and_resume",
+      "run_id": "run_31a8106614934adfbc6f",
+      "status": "SUCCEEDED",
+      "llm_calls": 6,
+      "tool_calls": 4,
+      "replans": 0,
+      "active_elapsed_ms": 18371,
+      "model_ids": [
+        "qwen/qwen3.6-35b-a3b"
+      ],
+      "role_count": 5,
+      "profile_version": 2,
+      "input_revision": 2,
+      "question_created": true,
+      "answer_accepted": true,
+      "usage_reported_total_tokens": 34338,
+      "is_quality_benchmark": false,
+      "scope_note": "Live adaptation check used a synthetic QA answer before final quote/materiality curation; current-code answer/resume path also covered by automated tests."
+    }
+  ],
+  "secrets": {
+    "local_file_exists": true,
+    "mode": "0600",
+    "configured_key_in_nonsecret_checked_files": false,
+    "files_checked": 64,
+    "excluded_directories": [
+      ".venv",
+      ".pytest_cache",
+      ".ruff_cache",
+      "__pycache__",
+      ".git"
+    ],
+    "scan_max_file_bytes": 20000000,
+    "git_and_docker_excluded": true
+  },
+  "source_integrity": {
+    "bank_pdf_sha256": "92a96805f2b720f76bd0c52d2491044812b38401ab62d0f4a9157b4ca81c49bb",
+    "bank_pdf_sha256_matches_expected": true,
+    "bank_claims_in_mvp": 3,
+    "bank_pages_sampled": [
+      1
+    ],
+    "bank_total_pages": 4,
+    "annotation_status": "pending_human_review"
+  },
+  "result_artifacts": [
+    "reports/live-rate-final.html",
+    "reports/live-rate-final.json",
+    "reports/test-results.xml",
+    "reports/browser-validation.json",
+    "reports/ui-cfo-desktop.png",
+    "reports/ui-cfo-mobile.png"
+  ],
+  "limitations": [
+    "Companies and company metrics are synthetic.",
+    "Real dated event and selected bank claims; no new-news ingestion or full bank PDF annotation.",
+    "Scenario is conditional contractual-rate sensitivity, not actual savings from holding the key rate.",
+    "Relative materiality is unknown without a financial denominator and approved threshold.",
+    "LLM verifier is not an independent expert review.",
+    "Local demo access only; no bank SSO or production deployment.",
+    "Docker build not tested: Docker unavailable.",
+    "Shared RUB balance and tariffs unknown; no monetary balance claim."
+  ],
+  "confidence_percent": 90,
+  "confidence_scope": "Implementation and described checked paths, not financial quality for real clients or full contest compliance."
+}

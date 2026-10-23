@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Вход · Пульс бизнеса</title><link rel="stylesheet" href="/static/login.css">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml"></head>
+<body><main><div class="brand">ПУЛЬС БИЗНЕСА</div>
+<h1>Рабочее пространство команды</h1>
+<p>Новости, данные компании и аналитика банка в одном разборе.</p>
+<form method="post" action="/auth/login">
+<label for="password">Пароль доступа</label>
+<input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256" autofocus>
+<p role="alert" class="error">{{ERROR}}</p><button type="submit">Войти</button>
+</form><small>Прототип для хакатона · Общий доступ команды</small>
+</main></body></html>

@@ -1,0 +1,657 @@
+{
+  "metadata": {
+    "status": "MVP curated corpus; not complete PDF annotation",
+    "news_source": "https://www.cbr.ru/press/pr/?file=11092026_133000key.htm",
+    "news_verified_on": "2026-10-23",
+    "news_representation": "verbatim first sentence with normalized whitespace; SHA-256 of stored excerpt",
+    "bank_pdf_sha256": "92a96805f2b720f76bd0c52d2491044812b38401ab62d0f4a9157b4ca81c49bb",
+    "bank_pages_indexed": [
+      1
+    ],
+    "bank_total_pages": 4,
+    "bank_coverage": "selected claims only, not complete Document/Claim/Relation annotation",
+    "bank_review": "pending human review; visually transcribed during development",
+    "company_profiles": "synthetic, not real or reconstructed CSV clients",
+    "curation_version": "mvp-v1-final"
+  },
+  "documents": [
+    {
+      "document_id": "news_rate_20260911",
+      "source_kind": "news",
+      "title": "Решение Банка России о сохранении ставки: 11 сентября 2026",
+      "publisher": "Пресс-служба Банка России",
+      "published_at": "2026-09-11",
+      "publication_date_raw": "11.09.2026 13:30:00",
+      "available_at": "2026-10-23T00:00:00Z",
+      "sha256": "e80a62503d2d220339223b488733aa719ba031d9cebe437dd6b8ea7508325932",
+      "public_url": "https://www.cbr.ru/press/pr/?file=11092026_133000key.htm"
+    },
+    {
+      "document_id": "bank_rate_20260911",
+      "source_kind": "bank_pdf",
+      "title": "Альфа-Банк: Ключевая ставка ЦБ РФ, 11 сентября 2026",
+      "publisher": "Альфа-Банк, Центр макроэкономического анализа",
+      "published_at": "2026-09-11",
+      "publication_date_raw": "11 сентября 2026 г.",
+      "available_at": "2026-10-23T00:00:00Z",
+      "sha256": "92a96805f2b720f76bd0c52d2491044812b38401ab62d0f4a9157b4ca81c49bb",
+      "public_url": "https://drive.google.com/file/d/1shHG89LtMgHT1_uEebHmQSFZe_zbeq7-/view"
+    },
+    {
+      "document_id": "demo_floating_document",
+      "source_kind": "company_upload",
+      "title": "Синтетический профиль: Северная упаковка — демо",
+      "publisher": "Демонстрационные данные команды",
+      "published_at": "2026-10-23",
+      "publication_date_raw": "2026-10-23",
+      "available_at": "2026-10-23T00:00:00Z",
+      "sha256": "dbb754b076b00c9f4b024642ccc599e1af0ab20fc49c67e8413c968379326d48",
+      "tenant_company_id": "demo_floating"
+    },
+    {
+      "document_id": "demo_missing_document",
+      "source_kind": "company_upload",
+      "title": "Синтетический профиль: Северная упаковка — нет суммы долга",
+      "publisher": "Демонстрационные данные команды",
+      "published_at": "2026-10-23",
+      "publication_date_raw": "2026-10-23",
+      "available_at": "2026-10-23T00:00:00Z",
+      "sha256": "a66f8a5f6833ee266947cfece4ef48c53e05917de03c1878b796f0dddc0187a5",
+      "tenant_company_id": "demo_missing"
+    },
+    {
+      "document_id": "demo_fixed_document",
+      "source_kind": "company_upload",
+      "title": "Синтетический профиль: Северная упаковка — фиксированная ставка",
+      "publisher": "Демонстрационные данные команды",
+      "published_at": "2026-10-23",
+      "publication_date_raw": "2026-10-23",
+      "available_at": "2026-10-23T00:00:00Z",
+      "sha256": "ff4e32258649f64b23348314723def9b14e2f1817967a3d744eb7dcbdeea5172",
+      "tenant_company_id": "demo_fixed"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "news_rate_fact",
+      "document_id": "news_rate_20260911",
+      "object_kind": "text",
+      "locator": "Пресс-релиз Банка России, первый абзац, первое предложение; пробелы нормализованы.",
+      "quote": "Совет директоров Банка России 11 сентября 2026 года принял решение сохранить ключевую ставку на уровне 14,00% годовых.",
+      "extraction_method": "manual"
+    },
+    {
+      "evidence_id": "bank_assessment_ev",
+      "document_id": "bank_rate_20260911",
+      "page": 1,
+      "object_kind": "text",
+      "locator": "Заголовок и подзаголовок страницы 1",
+      "quote": "Ставка без изменения на 14,0%, риторика стала жёстче",
+      "extraction_method": "manual"
+    },
+    {
+      "evidence_id": "bank_pause_ev",
+      "document_id": "bank_rate_20260911",
+      "page": 1,
+      "object_kind": "text",
+      "locator": "Последний абзац страницы 1, жирный подзаголовок",
+      "quote": "Мы ожидаем сохранения паузы на заседании 23 октября",
+      "extraction_method": "manual"
+    },
+    {
+      "evidence_id": "bank_yearend_ev",
+      "document_id": "bank_rate_20260911",
+      "page": 1,
+      "object_kind": "text",
+      "locator": "Последний абзац страницы 1",
+      "quote": "теперь мы ожидаем ее сохранения на текущем значении 14,0% до конца года",
+      "extraction_method": "manual"
+    },
+    {
+      "evidence_id": "demo_floating_evidence",
+      "document_id": "demo_floating_document",
+      "page": 1,
+      "object_kind": "text",
+      "locator": "Синтетический профиль целиком",
+      "quote": "{\"company\": \"Северная упаковка — демо\", \"synthetic\": true, \"rate_type\": \"floating\", \"floating_debt_rub\": 1000000000, \"capex_planned_rub\": 200000000, \"inventory_days\": 45, \"receivables_days\": 60, \"credit_sales_share\": 0.6, \"note\": \"Демонстрационные сведения, не реальный клиент и не данные CSV кейса.\"}",
+      "extraction_method": "manual"
+    },
+    {
+      "evidence_id": "demo_missing_evidence",
+      "document_id": "demo_missing_document",
+      "page": 1,
+      "object_kind": "text",
+      "locator": "Синтетический профиль целиком",
+      "quote": "{\"company\": \"Северная упаковка — нет суммы долга\", \"synthetic\": true, \"rate_type\": \"floating\", \"floating_debt_rub\": null, \"capex_planned_rub\": 200000000, \"inventory_days\": 45, \"receivables_days\": 60, \"credit_sales_share\": 0.6, \"note\": \"Демонстрационные сведения, не реальный клиент и не данные CSV кейса.\"}",
+      "extraction_method": "manual"
+    },
+    {
+      "evidence_id": "demo_fixed_evidence",
+      "document_id": "demo_fixed_document",
+      "page": 1,
+      "object_kind": "text",
+      "locator": "Синтетический профиль целиком",
+      "quote": "{\"company\": \"Северная упаковка — фиксированная ставка\", \"synthetic\": true, \"rate_type\": \"fixed\", \"floating_debt_rub\": 0, \"capex_planned_rub\": 200000000, \"inventory_days\": 45, \"receivables_days\": 60, \"credit_sales_share\": 0.6, \"note\": \"Демонстрационные сведения, не реальный клиент и не данные CSV кейса.\"}",
+      "extraction_method": "manual"
+    }
+  ],
+  "bank_claims": [
+    {
+      "claim_id": "bank_assessment",
+      "document_id": "bank_rate_20260911",
+      "text": "Риторика ЦБ стала жёстче.",
+      "claim_type": "ASSESSMENT",
+      "significance": "PRIMARY",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк, Центр макроэкономического анализа",
+        "raw_attribution": "Подзаголовок банковского обзора"
+      },
+      "modality_raw": null,
+      "conditions": [],
+      "time_scope": {},
+      "numbers": [],
+      "evidence_ids": [
+        "bank_assessment_ev"
+      ],
+      "review_status": "pending_human_review"
+    },
+    {
+      "claim_id": "bank_pause",
+      "document_id": "bank_rate_20260911",
+      "text": "Мы ожидаем сохранения паузы на заседании 23 октября",
+      "claim_type": "FORECAST",
+      "significance": "PRIMARY",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк, Центр макроэкономического анализа",
+        "raw_attribution": "Мы ожидаем"
+      },
+      "modality_raw": "ожидаем",
+      "conditions": [],
+      "time_scope": {
+        "raw": "23 октября 2026",
+        "start": "2026-10-23",
+        "end": "2026-10-23"
+      },
+      "numbers": [],
+      "evidence_ids": [
+        "bank_pause_ev"
+      ],
+      "review_status": "pending_human_review"
+    },
+    {
+      "claim_id": "bank_yearend",
+      "document_id": "bank_rate_20260911",
+      "text": "теперь мы ожидаем ее сохранения на текущем значении 14,0% до конца года",
+      "claim_type": "FORECAST",
+      "significance": "PRIMARY",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк, Центр макроэкономического анализа",
+        "raw_attribution": "Мы ожидаем"
+      },
+      "modality_raw": "ожидаем",
+      "conditions": [],
+      "time_scope": {
+        "raw": "до конца 2026 года",
+        "end": "2026-12-31"
+      },
+      "numbers": [
+        {
+          "value": "14.0",
+          "unit": "%",
+          "raw": "14,0%"
+        }
+      ],
+      "evidence_ids": [
+        "bank_yearend_ev"
+      ],
+      "review_status": "pending_human_review"
+    }
+  ],
+  "companies": [
+    {
+      "company_id": "demo_floating",
+      "version": 1,
+      "as_of": "2026-10-23T00:00:00Z",
+      "features": [
+        {
+          "feature_id": "demo_floating_company_name",
+          "name": "company_name",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_floating_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "text_value": "Северная упаковка — демо"
+        },
+        {
+          "feature_id": "demo_floating_industry",
+          "name": "industry",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_floating_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "text_value": "Производство упаковки"
+        },
+        {
+          "feature_id": "demo_floating_rate_type",
+          "name": "rate_type",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_floating_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "text_value": "floating"
+        },
+        {
+          "feature_id": "demo_floating_floating_debt_rub",
+          "name": "floating_debt_rub",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_floating_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "1000000000",
+            "unit": "RUB",
+            "raw": "1000000000 RUB"
+          }
+        },
+        {
+          "feature_id": "demo_floating_capex_planned_rub",
+          "name": "capex_planned_rub",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_floating_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "200000000",
+            "unit": "RUB",
+            "raw": "200000000 RUB"
+          }
+        },
+        {
+          "feature_id": "demo_floating_inventory_days",
+          "name": "inventory_days",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_floating_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "45",
+            "unit": "days",
+            "raw": "45 days"
+          }
+        },
+        {
+          "feature_id": "demo_floating_receivables_days",
+          "name": "receivables_days",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_floating_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "60",
+            "unit": "days",
+            "raw": "60 days"
+          }
+        },
+        {
+          "feature_id": "demo_floating_credit_sales_share",
+          "name": "credit_sales_share",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_floating_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "0.6",
+            "unit": "fraction",
+            "raw": "0.6 fraction"
+          }
+        }
+      ],
+      "unresolved_identity": false,
+      "source_snapshot_ids": [
+        "demo_floating_document"
+      ]
+    },
+    {
+      "company_id": "demo_missing",
+      "version": 1,
+      "as_of": "2026-10-23T00:00:00Z",
+      "features": [
+        {
+          "feature_id": "demo_missing_company_name",
+          "name": "company_name",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_missing_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "text_value": "Северная упаковка — нет суммы долга"
+        },
+        {
+          "feature_id": "demo_missing_industry",
+          "name": "industry",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_missing_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "text_value": "Производство упаковки"
+        },
+        {
+          "feature_id": "demo_missing_rate_type",
+          "name": "rate_type",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_missing_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "text_value": "floating"
+        },
+        {
+          "feature_id": "demo_missing_floating_debt_rub",
+          "name": "floating_debt_rub",
+          "status": "missing",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_missing_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации."
+        },
+        {
+          "feature_id": "demo_missing_capex_planned_rub",
+          "name": "capex_planned_rub",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_missing_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "200000000",
+            "unit": "RUB",
+            "raw": "200000000 RUB"
+          }
+        },
+        {
+          "feature_id": "demo_missing_inventory_days",
+          "name": "inventory_days",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_missing_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "45",
+            "unit": "days",
+            "raw": "45 days"
+          }
+        },
+        {
+          "feature_id": "demo_missing_receivables_days",
+          "name": "receivables_days",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_missing_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "60",
+            "unit": "days",
+            "raw": "60 days"
+          }
+        },
+        {
+          "feature_id": "demo_missing_credit_sales_share",
+          "name": "credit_sales_share",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_missing_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "0.6",
+            "unit": "fraction",
+            "raw": "0.6 fraction"
+          }
+        }
+      ],
+      "unresolved_identity": false,
+      "source_snapshot_ids": [
+        "demo_missing_document"
+      ]
+    },
+    {
+      "company_id": "demo_fixed",
+      "version": 1,
+      "as_of": "2026-10-23T00:00:00Z",
+      "features": [
+        {
+          "feature_id": "demo_fixed_company_name",
+          "name": "company_name",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_fixed_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "text_value": "Северная упаковка — фиксированная ставка"
+        },
+        {
+          "feature_id": "demo_fixed_industry",
+          "name": "industry",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_fixed_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "text_value": "Производство упаковки"
+        },
+        {
+          "feature_id": "demo_fixed_rate_type",
+          "name": "rate_type",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_fixed_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "text_value": "fixed"
+        },
+        {
+          "feature_id": "demo_fixed_floating_debt_rub",
+          "name": "floating_debt_rub",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_fixed_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "0",
+            "unit": "RUB",
+            "raw": "0 RUB"
+          }
+        },
+        {
+          "feature_id": "demo_fixed_capex_planned_rub",
+          "name": "capex_planned_rub",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_fixed_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "200000000",
+            "unit": "RUB",
+            "raw": "200000000 RUB"
+          }
+        },
+        {
+          "feature_id": "demo_fixed_inventory_days",
+          "name": "inventory_days",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_fixed_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "45",
+            "unit": "days",
+            "raw": "45 days"
+          }
+        },
+        {
+          "feature_id": "demo_fixed_receivables_days",
+          "name": "receivables_days",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_fixed_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "60",
+            "unit": "days",
+            "raw": "60 days"
+          }
+        },
+        {
+          "feature_id": "demo_fixed_credit_sales_share",
+          "name": "credit_sales_share",
+          "status": "self_reported",
+          "period": {},
+          "source_refs": [
+            {
+              "kind": "evidence",
+              "ref_id": "demo_fixed_evidence"
+            }
+          ],
+          "note": "Синтетические данные для демонстрации.",
+          "numeric_value": {
+            "value": "0.6",
+            "unit": "fraction",
+            "raw": "0.6 fraction"
+          }
+        }
+      ],
+      "unresolved_identity": false,
+      "source_snapshot_ids": [
+        "demo_fixed_document"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "event_id": "rate_decision_20260911",
+      "document_ids": [
+        "news_rate_20260911"
+      ],
+      "headline": "ЦБ сохранил ставку 14% — событие 11 сентября 2026",
+      "published_at": "2026-09-11",
+      "available_at": "2026-10-23T00:00:00Z"
+    }
+  ],
+  "document_text": {
+    "news_rate_20260911": "Совет директоров Банка России 11 сентября 2026 года принял решение сохранить ключевую ставку на уровне 14,00% годовых.",
+    "bank_rate_20260911": "Ставка без изменения на 14,0%, риторика стала жёстче\nМы ожидаем сохранения паузы на заседании 23 октября\nтеперь мы ожидаем ее сохранения на текущем значении 14,0% до конца года",
+    "demo_floating_document": "{\"company\": \"Северная упаковка — демо\", \"synthetic\": true, \"rate_type\": \"floating\", \"floating_debt_rub\": 1000000000, \"capex_planned_rub\": 200000000, \"inventory_days\": 45, \"receivables_days\": 60, \"credit_sales_share\": 0.6, \"note\": \"Демонстрационные сведения, не реальный клиент и не данные CSV кейса.\"}",
+    "demo_missing_document": "{\"company\": \"Северная упаковка — нет суммы долга\", \"synthetic\": true, \"rate_type\": \"floating\", \"floating_debt_rub\": null, \"capex_planned_rub\": 200000000, \"inventory_days\": 45, \"receivables_days\": 60, \"credit_sales_share\": 0.6, \"note\": \"Демонстрационные сведения, не реальный клиент и не данные CSV кейса.\"}",
+    "demo_fixed_document": "{\"company\": \"Северная упаковка — фиксированная ставка\", \"synthetic\": true, \"rate_type\": \"fixed\", \"floating_debt_rub\": 0, \"capex_planned_rub\": 200000000, \"inventory_days\": 45, \"receivables_days\": 60, \"credit_sales_share\": 0.6, \"note\": \"Демонстрационные сведения, не реальный клиент и не данные CSV кейса.\"}"
+  }
+}

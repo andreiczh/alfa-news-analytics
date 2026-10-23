@@ -1,0 +1,212 @@
+{
+  "generated_at": "2026-10-23T16:41:07.054129+00:00",
+  "version": "0.2.0",
+  "scope": "Miro-based local interface, complete case CSV integration, company uploads and rate-event agent",
+  "local_url": "http://127.0.0.1:8765",
+  "case_csv": {
+    "company_rows": 85525,
+    "unique_company_ids": 85514,
+    "selectable_client_ids": 41968,
+    "payment_rows": 1380585,
+    "person_company_link_rows": 12514,
+    "sha256_verified_against_current_files": true,
+    "source_hashes": {
+      "df_Uid_data_hack.csv": "cb48983806ce7ca0ae045a40c9627ccbe47cc72bfb54058db04df2386da4a983",
+      "df_Uid_payment_hack.csv": "30095f75bead1a1dac0d7232b0da09a326b7ef643ee3b77b36ad3b4458a1cab3",
+      "df_Fid_Uid_link_hack.csv": "3d9c718e2a87304f48bbc7447607116bb8e4bd61dded70b0a1d0558f086a1b58"
+    }
+  },
+  "automated_tests": {
+    "status": "passed",
+    "tests": 59,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_seconds": 2.89,
+    "evidence": "reports/test-results-v2.xml",
+    "provider": "test_double_no_paid_API",
+    "warning": "Starlette TestClient/httpx deprecation"
+  },
+  "static_checks": {
+    "ruff": "passed",
+    "javascript_syntax": "passed"
+  },
+  "browser": {
+    "status": "passed",
+    "url": "http://127.0.0.1:8765",
+    "browser": "Chromium",
+    "headless": false,
+    "checks": [
+      "full real case CSV counts",
+      "case loan flag does not create a floating-rate exposure",
+      "real case company live analysis publishes without invented amount",
+      "role projection changes",
+      "run source drawer shows exact case locators",
+      "real API text extraction, permitted VL scan OCR, cited profile merge",
+      "company-document profile used by live agent and exact Decimal scenario",
+      "five working role tabs",
+      "verified result export",
+      "favorite persists after reload",
+      "custom quick actions",
+      "390px responsive home and documents",
+      "no page or console errors"
+    ],
+    "errors": [],
+    "consoleErrors": []
+  },
+  "final_readonly_browser_smoke": {
+    "status": "passed",
+    "url": "http://127.0.0.1:8765",
+    "read_only": true,
+    "new_llm_calls": 0,
+    "checks": [
+      "final home renders real case company",
+      "final case evidence shows all three CSV sources",
+      "final document insight and immutable sources still render",
+      "final mobile home settled without sidebar overlay or overflow",
+      "no console or page errors after final restart"
+    ],
+    "errors": []
+  },
+  "visual_review": {
+    "desktop_home": "reviewed",
+    "desktop_cfo_insight": "reviewed",
+    "mobile_home": "reviewed_after_transition_settled",
+    "mobile_documents": "reviewed"
+  },
+  "live_runs": [
+    {
+      "scenario": "case_csv_company",
+      "run_id": "run_04efacff8b8545c581eb",
+      "status": "PARTIAL",
+      "model_ids": [
+        "qwen/qwen3.6-35b-a3b"
+      ],
+      "llm_calls": 5,
+      "tools": 2,
+      "replans": 0,
+      "active_seconds": 20.85,
+      "profile_version": 1,
+      "role_count": 5,
+      "source_documents_in_profile": 3,
+      "materiality": "unknown",
+      "deterministic_recheck_final_code": "passed",
+      "not_a_quality_benchmark": true
+    },
+    {
+      "scenario": "synthetic_company_documents",
+      "run_id": "run_bcf66bb4e3564e4f9970",
+      "status": "SUCCEEDED",
+      "model_ids": [
+        "qwen/qwen3.6-35b-a3b"
+      ],
+      "llm_calls": 6,
+      "tools": 3,
+      "replans": 1,
+      "active_seconds": 26.007,
+      "profile_version": 4,
+      "role_count": 5,
+      "source_documents_in_profile": 3,
+      "materiality": "unknown",
+      "deterministic_recheck_final_code": "passed",
+      "not_a_quality_benchmark": true
+    }
+  ],
+  "live_document_processing": {
+    "company_id": "company_b28d88c6688d4a128111",
+    "synthetic_test_data": true,
+    "documents": [
+      {
+        "document_id": "upload_b9f763c82cee4361a470",
+        "company_id": "company_b28d88c6688d4a128111",
+        "name": "company-strategy-scan.pdf",
+        "bytes": 74867,
+        "sha256": "0ce789a8b9d1bb3ae74f6ec1ad5bb113ea3bf5b715d79fa70bc91d10cba2f234",
+        "created_at": "2026-10-23T15:59:26.168053+00:00",
+        "status": "READY",
+        "phase": "complete",
+        "error_code": null,
+        "next_eligible_at": null,
+        "feature_count": 4,
+        "issues": [
+          "Есть страницы, распознанные разрешённой VL-моделью. Числа требуют проверки по изображению оригинала."
+        ],
+        "llm_calls": 2,
+        "progress": {
+          "processed_packets": 1,
+          "total_packets": 1
+        }
+      },
+      {
+        "document_id": "upload_78c540b2d2134c6aa7f2",
+        "company_id": "company_b28d88c6688d4a128111",
+        "name": "company-finance.txt",
+        "bytes": 730,
+        "sha256": "b810d0dfd631e5549f30a4c7772e948ef59753db6df0bd5a7fa36369b2dede9c",
+        "created_at": "2026-10-23T15:59:26.162707+00:00",
+        "status": "READY",
+        "phase": "complete",
+        "error_code": null,
+        "next_eligible_at": null,
+        "feature_count": 9,
+        "issues": [],
+        "llm_calls": 2,
+        "progress": {
+          "processed_packets": 1,
+          "total_packets": 1
+        }
+      }
+    ],
+    "tested_models": [
+      "qwen/qwen3.6-35b-a3b",
+      "qwen/qwen3-vl-30b-a3b-instruct"
+    ],
+    "text_features": 9,
+    "scanned_pdf_features": 4,
+    "independently_human_verified": false
+  },
+  "runtime": {
+    "single_worker_checked": true,
+    "workers": [
+      {
+        "pid": 15805,
+        "parent_pid": 15803
+      }
+    ],
+    "parent_shutdown_stopped_previous_worker_live_check": true
+  },
+  "key_storage": {
+    "mode": "0600",
+    "source_or_artifact_leaks_found": false,
+    "files_scanned": 96,
+    "bytes_scanned": 225608344,
+    "excluded_directories": [
+      ".venv",
+      ".pytest_cache",
+      ".ruff_cache",
+      "__pycache__",
+      ".git"
+    ],
+    "git_and_docker_ignored": true
+  },
+  "miro": {
+    "board_id": "uXjVEY6IJiQ=",
+    "source_manifest": "../materials/2026-10-23/miro-source.json",
+    "text_and_overview_read": true,
+    "all_embedded_images_transcribed": false,
+    "board_modified": false
+  },
+  "limitations": [
+    "Only a dated rate event is implemented; no new-news ingestion or universal research/chat.",
+    "Bank corpus is three selected claims on page 1 of one PDF, pending human review; all nine PDFs are not indexed.",
+    "Case financial units, periods and some semantics require primary organizer confirmation.",
+    "Local demo principal and manual role selection; no bank SSO/production authorization.",
+    "Company document extraction/OCR is source-checked, not independent financial expertise.",
+    "Live company-upload checks use explicitly synthetic fixtures, separate from anonymized case IDs.",
+    "Relative materiality remains unknown without a supported denominator and approved threshold.",
+    "Docker unavailable: container build not tested.",
+    "Shared remaining RUB balance/tariffs unknown; no fabricated cost balance."
+  ],
+  "confidence_percent": 90,
+  "confidence_scope": "Local implementation and tested paths, not all contest criteria or accuracy on arbitrary real company documents."
+}

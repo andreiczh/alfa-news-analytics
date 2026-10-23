@@ -1,0 +1,45 @@
+{
+  "status": "proposed_initial_limits_not_measured_slo",
+  "budget": {
+    "provider_rub_per_key_per_day": 500,
+    "timezone": "Europe/Moscow",
+    "reset_local_hour": 3,
+    "provider_error_fragment": "Budget has been exceeded",
+    "local_rub_enforcement": "disabled_until_prices_verified",
+    "local_usage_scope": "this_application_only"
+  },
+  "online_run": {
+    "max_llm_calls": 12,
+    "max_tool_calls": 8,
+    "max_replans": 2,
+    "max_repeated_identical_tool_calls": 1,
+    "max_json_repairs_per_stage": 1,
+    "max_transient_retries_per_request": 1,
+    "active_time_seconds": 180,
+    "llm_timeout_seconds": 30,
+    "max_prompt_characters": 24000,
+    "proposed_max_output_tokens": 1800,
+    "max_parallel_llm_requests_per_key": 1,
+    "max_evidence_fragments_in_model_view": 20,
+    "max_characters_per_fragment": 1200,
+    "max_tool_result_characters": 12000
+  },
+  "ingestion": {
+    "max_parallel_llm_requests_per_key": 1,
+    "resume_at_page_boundary": true,
+    "on_budget_exhaustion": "pause_and_resume_not_truncate_claims",
+    "publish_incomplete_document": false
+  },
+  "retrieval": {
+    "mode": "sqlite_fts5_plus_deterministic_filters",
+    "embedding_model": null,
+    "max_results_per_search": 8,
+    "as_of_filter": "available_at_lte_run_as_of"
+  },
+  "publishing": {
+    "human_verified_required_for_all_claims": false,
+    "critical_unresolved_claim_can_publish": false,
+    "partial_requires_grounded_present_claims": true,
+    "role_projection": "deterministic_from_verified_core"
+  }
+}

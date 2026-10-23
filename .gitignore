@@ -1,0 +1,15 @@
+.env
+.env.local
+.env.*
+.DS_Store
+.render/
+render-access.txt
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+var/
+reports/live-*.json
+reports/live-*.html
+reports/

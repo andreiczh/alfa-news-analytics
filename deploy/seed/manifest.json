@@ -1,0 +1,8 @@
+{
+  "source": "Reviewed local workspace: case IDs and explicitly synthetic QA documents; no real company uploads supplied",
+  "files": {
+    "agent.sqlite3": "57568f88e45b5d7404795b0e9be79f3df660882ede4c6b52d01330da214f998c",
+    "uploads/upload_78c540b2d2134c6aa7f2.txt": "b810d0dfd631e5549f30a4c7772e948ef59753db6df0bd5a7fa36369b2dede9c",
+    "uploads/upload_b9f763c82cee4361a470.pdf": "0ce789a8b9d1bb3ae74f6ec1ad5bb113ea3bf5b715d79fa70bc91d10cba2f234"
+  }
+}
