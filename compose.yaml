@@ -10,7 +10,7 @@ services:
       - "127.0.0.1:8765:8765"
     volumes:
       - agent-state:/app/var
-      - ../sources/data:/case:ro
+      - ./data/case:/case:ro
     restart: unless-stopped
   worker:
     build: .
@@ -21,7 +21,7 @@ services:
       ALFA_CASE_DATA_DIR: /case
     volumes:
       - agent-state:/app/var
-      - ../sources/data:/case:ro
+      - ./data/case:/case:ro
     restart: unless-stopped
 volumes:
   agent-state:

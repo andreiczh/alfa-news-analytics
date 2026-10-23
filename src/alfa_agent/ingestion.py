@@ -307,22 +307,36 @@ class DocumentProcessor:
                 if index < progress["processed_packets"]:
                     continue
                 self.workspace.update_job(job["id"], "extract", progress)
-                facts = await self.invoke(
-                    job,
-                    "profile_extractor",
-                    {
-                        "company_id": job["company_id"],
-                        "document_id": job["document_id"],
-                        "filename": row["name"],
-                        "chunks": packet,
-                    },
-                    ExtractedFacts,
-                )
+                try:
+                    facts = await self.invoke(
+                        job,
+                        "profile_extractor",
+                        {
+                            "company_id": job["company_id"],
+                            "document_id": job["document_id"],
+                            "filename": row["name"],
+                            "chunks": packet,
+                        },
+                        ExtractedFacts,
+                    )
+                except GatewayError as failure:
+                    if failure.code != "document_contract_invalid":
+                        raise
+                    # Parsing succeeded. Preserve original text while refusing invented structured values.
+                    progress.setdefault("extraction_warnings", []).append(
+                        "Текст фрагмента прочитан, но структурированные признаки не прошли проверку формата. "
+                        "Агент может использовать исходный текст; численные параметры из этого ответа не приняты."
+                    )
+                    facts = ExtractedFacts(facts=[], issues=[])
                 progress["facts"].extend(f.model_dump(mode="json") for f in facts.facts)
                 progress["processed_packets"] = index + 1
                 self.workspace.update_job(job["id"], "validate", progress)
                 self.consume(job["id"])
-            features, evidence, issues = [], [], list(parsed["issues"])
+            features, evidence, issues = (
+                [],
+                [],
+                list(parsed["issues"]) + progress.get("extraction_warnings", []),
+            )
             by_id = {c["id"]: c for c in chunks}
             seen = set()
             for index, raw in enumerate(progress["facts"], 1):
@@ -429,4 +443,16 @@ class DocumentProcessor:
                     "raw": raw,
                     "errors": error.errors(include_input=False, include_context=False, include_url=False),
                 }
+                self.store.audit(
+                    job["id"],
+                    "PROFILE",
+                    "document_contract_rejected",
+                    {
+                        "stage": stage,
+                        "errors": [
+                            {"type": e["type"], "location": list(e["loc"]), "message": e["msg"]}
+                            for e in repair["errors"]
+                        ],
+                    },
+                )
         raise GatewayError("document_contract_invalid")

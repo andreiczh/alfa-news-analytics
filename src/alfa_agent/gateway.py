@@ -36,7 +36,9 @@ class LiveGateway:
 
     async def complete(self, run_id, stage, payload, schema, repair=None, *, images=None, model=None):
         selected_model = model or (
-            self.settings.research_model if stage.startswith("research_") else self.settings.model
+            self.settings.research_model
+            if stage.startswith("research_") or stage == "profile_extractor"
+            else self.settings.model
         )
         if selected_model not in MODELS:
             raise ValueError("model_not_allowed")
@@ -107,7 +109,7 @@ class LiveGateway:
                 "research_verify": 4500,
             }.get(stage, 3000),
         }
-        if stage.startswith("research_"):
+        if stage.startswith("research_") or stage == "profile_extractor":
             request["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {"name": stage, "strict": True, "schema": schema},
