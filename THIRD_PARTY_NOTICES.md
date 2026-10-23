@@ -4,7 +4,7 @@ Runtime: Python (PSF), FastAPI (MIT), Starlette (BSD-3-Clause), HTTPX/httpcore/h
 
 LLMs are accessed through the organizer-provided API. Allowed model IDs come from the supplied case/API instruction. No model weights are distributed. Disabling reasoning is a request option tested through this gateway; OpenRouter's documentation is reference material, not proof of the underlying provider or its tariffs.
 
-Case material: Альфа-Банк, «Ключевая ставка ЦБ РФ», 11 September 2026, page 1; source PDF SHA-256 `92a96805f2b720f76bd0c52d2491044812b38401ab62d0f4a9157b4ca81c49bb`. Only selected short source statements/evidence are included in the demonstration corpus, with pending human review. Full PDF is stored separately in the case source folder and is not copied into the Docker image. Source rights remain with the publisher; this is not a grant for public republication.
+Case materials: nine Alfa-Bank PDF files provided with the case, 64 pages total. `data/bank_library.json` contains page OCR text, file SHA-256, original URLs and dates. The original PDFs remain in the separate case source folder and are not copied into the image. Three rate-related claims also have selected structured attribution, pending human review. OCR is not complete claim/relation annotation or proof of source accuracy. Source rights remain with the publisher; this is not a grant for public republication. The application is restricted to the authorized hackathon team.
 
 News: Пресс-служба Банка России, decision of 11 September 2026; the corpus contains a short curated excerpt and original source URL. The original version 0.1 company profiles are fictional synthetic development data. Version 0.2 additionally uses real anonymized case CSV records and explicitly user-bound documents, as described below.
 
@@ -24,3 +24,13 @@ All three organizer-provided anonymized CSV files are used from the separate sou
 Miro: user-shared board uXjVEY6IJiQ=, read 23 October 2026. Textual design notes are retained locally with provenance; the board was not modified. Banking screenshot balance figures from Miro were not presented as real account data or copied into the application.
 
 The allowed VL model was exercised through the organizer gateway for a one-page synthetic scanned PDF; no additional AI service or model was used. This confirms that tested route, not arbitrary vision capabilities or document-quality accuracy.
+
+## Version 0.3 additions
+
+Page OCR of the nine supplied bank PDFs was prepared locally with Apple Vision (OS framework; no weights, framework binaries or extra AI API are distributed). The runtime research loop uses the case-approved organizer models only. Bank OCR retains pending-review status; table/chart reconstruction is not treated as verified evidence.
+
+Open-web discovery uses Bing's public search RSS and bounded reads of user-selected public HTTPS pages. Search headlines are leads, not confirmed facts. Public source availability and usage terms belong to their publishers. No paid search service, autonomous external agent, embedding service or outside LLM is part of the application. HTTPS/DNS/TLS, HTML and RSS parsing use Python standard-library modules.
+
+Development-only formatting: Prettier 3.6.2 (MIT). Browser validation: Playwright/Chromium (Apache-2.0 and Chromium third-party licenses). These are development tools, not agent components or runtime dependencies in the application image.
+
+Miro was rechecked through the supplied public board on 23 October 2026. Fifteen textual objects were recovered from that board; embedded screenshots are design references, not bank balances, supplied client profiles or a new organizer regulation.

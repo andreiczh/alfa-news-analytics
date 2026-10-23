@@ -24,3 +24,5 @@ services:
         sync: false
       - key: ALFA_ACCESS_PASSWORD
         sync: false
+      - key: ALFA_SESSION_SECRET
+        sync: false

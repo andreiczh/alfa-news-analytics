@@ -1,0 +1,68 @@
+{
+  "version": "0.3.0",
+  "checked_at": "2026-10-23T21:39:09.300877+00:00",
+  "scope": "Local release verification; Render verification recorded after deployment",
+  "tests": {
+    "pytest_passed": 92,
+    "ruff": "passed",
+    "javascript_syntax": "passed",
+    "locked_install": "uv sync --frozen --offline passed",
+    "local_browser": {
+      "target": "http://127.0.0.1:8766",
+      "checks": [
+        "employee login and company context",
+        "manual context saved",
+        "document upload parsed by organizer model",
+        "custom CFO research automatically verified",
+        "five consistent role views",
+        "favorite saved",
+        "human readable report export",
+        "mobile without horizontal overflow"
+      ],
+      "page_errors": [],
+      "run_id": "research_a6ae83add97140a9b8d3",
+      "status": "PARTIAL",
+      "llm_calls": 3,
+      "tool_calls": 2,
+      "replans": 0
+    },
+    "local_browser_review": {
+      "checks": [
+        "signed session restored after server restart",
+        "quick questions persist per employee and company",
+        "bank position prominent with original quote and date",
+        "missing data reachable directly from summary",
+        "revised result mobile layout",
+        "real anonymized case payments readable and sample read only",
+        "all nine bank PDFs linked"
+      ],
+      "page_errors": []
+    }
+  },
+  "source_audit": {
+    "primary_documents_sha_match": true,
+    "bank_documents": 9,
+    "bank_pages": 64,
+    "complete_human_annotation": false,
+    "miro_public_text_objects_rechecked": 15,
+    "embedded_miro_images_fully_transcribed": false,
+    "case_data_crosscheck": {
+      "payment_rows": 1380585,
+      "self_row_pct": 1.985100518982895,
+      "self_amount_pct": 81.65872185616175,
+      "self_payment_count_pct": 13.2928962587616,
+      "payment_ids_missing_company_profile": 114552,
+      "source": "Prepared index; original CSV hashes checked by CaseData"
+    }
+  },
+  "jury_repository_permission": "none (read-only GitHub check)",
+  "docker_build": "not run: Docker CLI unavailable",
+  "render_update": "pending cloud verification",
+  "limitations": [
+    "Bank PDF corpus has page OCR and three structured rate claims, not complete human annotation",
+    "Research uses a bounded catalogue of team-owned mechanisms; not a universal industry analyst or financial model",
+    "No independent relevance/recall benchmark or user interviews",
+    "Free storage is ephemeral; bank SSO and production authorization absent"
+  ],
+  "confidence_percent": 90
+}

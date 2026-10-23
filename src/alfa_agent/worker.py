@@ -7,6 +7,7 @@ from .gateway import LiveGateway
 from .service import Service
 from .settings import Settings
 from .ingestion import DocumentProcessor
+from .research import ResearchEngine
 
 
 async def work(once=False, settings=None):
@@ -33,9 +34,12 @@ async def work(once=False, settings=None):
     gateway = LiveGateway(settings, service.store)
     engine = Engine(settings, service.store, service.corpus, gateway)
     processor = DocumentProcessor(service.workspace, gateway)
+    research = ResearchEngine(service.research, gateway)
     try:
         while True:
             job = await processor.once()
+            if not job:
+                job = await research.once()
             if not job:
                 job = await engine.once()
             if once:

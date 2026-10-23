@@ -131,7 +131,7 @@ class Engine:
             self.store.audit(row["id"], state.node.value, event, data)
 
         def limit():
-            current = self.store.get(row["id"])
+            current = self.store.get(row["id"], row["tenant"])
             if current["status"] == "CANCELLED" or current["version"] != row["version"]:
                 raise Conflict("run_changed")
             if (

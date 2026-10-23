@@ -51,10 +51,12 @@ def read_key(root: Path = ROOT) -> str:
 class Settings:
     root: Path = ROOT
     state_dir: Path | None = field(
-        default_factory=lambda: Path(os.environ["ALFA_STATE_DIR"]).resolve()
-        if os.environ.get("ALFA_STATE_DIR") else None
+        default_factory=lambda: (
+            Path(os.environ["ALFA_STATE_DIR"]).resolve() if os.environ.get("ALFA_STATE_DIR") else None
+        )
     )
     model: str = os.environ.get("ALFA_LLM_MODEL", "qwen/qwen3.6-35b-a3b")
+    research_model: str = os.environ.get("ALFA_RESEARCH_MODEL", "z-ai/glm-5.3-flash")
     disable_reasoning: bool = True
     max_calls: int = 12
     max_tools: int = 8

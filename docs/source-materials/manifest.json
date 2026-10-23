@@ -1,0 +1,26 @@
+[
+  {
+    "file": "case.pdf",
+    "sha256": "e9dcd7e0f68ff8664e2fcc5b3124632acb7accc671a29fcdd971daf6353143ef",
+    "bytes": 4465534,
+    "source_path": "sources/case.pdf"
+  },
+  {
+    "file": "labeling-methodology.pdf",
+    "sha256": "307da336e0440b3882b06258c405fbd7f3763b290880c4d97d1b2ed8d46959eb",
+    "bytes": 365385,
+    "source_path": "materials/2026-10-20/labeling-methodology.pdf"
+  },
+  {
+    "file": "audience-analysis.docx",
+    "sha256": "0acf9a4081c34eacb9592dc0c44ddc8d821de8d9b92377699505a0a48f591688",
+    "bytes": 51560,
+    "source_path": "materials/2026-10-20/audience-analysis.docx"
+  },
+  {
+    "file": "api-instructions.pdf",
+    "sha256": "f2ed65679b2931d78ef9655a36d31386a91ca6a14bf0b0d14f9a1f66db06d6e3",
+    "bytes": 74634,
+    "source_path": "sources/api/api-key-instructions.pdf"
+  }
+]

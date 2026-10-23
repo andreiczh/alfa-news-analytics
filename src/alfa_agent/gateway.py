@@ -21,7 +21,7 @@ class LiveGateway:
     mode = "live"
 
     def __init__(self, settings: Settings, store: Store, transport=None):
-        if settings.model not in MODELS:
+        if settings.model not in MODELS or settings.research_model not in MODELS:
             raise ValueError("model_not_allowed")
         self.settings, self.store = settings, store
         self.client = httpx.AsyncClient(
@@ -35,7 +35,9 @@ class LiveGateway:
         await self.client.aclose()
 
     async def complete(self, run_id, stage, payload, schema, repair=None, *, images=None, model=None):
-        selected_model = model or self.settings.model
+        selected_model = model or (
+            self.settings.research_model if stage.startswith("research_") else self.settings.model
+        )
         if selected_model not in MODELS:
             raise ValueError("model_not_allowed")
         if images and (stage != "document_ocr" or selected_model != "qwen/qwen3-vl-30b-a3b-instruct"):
@@ -100,8 +102,16 @@ class LiveGateway:
                 "verifier": 5000,
                 "profile_extractor": 6000,
                 "document_ocr": 6000,
+                "research_plan": 3500,
+                "research_write": 8000,
+                "research_verify": 4500,
             }.get(stage, 3000),
         }
+        if stage.startswith("research_"):
+            request["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": stage, "strict": True, "schema": schema},
+            }
         if self.settings.disable_reasoning:
             request["reasoning"] = {"enabled": False}
         digest = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()

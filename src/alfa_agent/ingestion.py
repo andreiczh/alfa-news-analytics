@@ -40,6 +40,12 @@ FIELDS = Literal[
     "competitors",
     "strategy",
     "tactics",
+    "funding_structure",
+    "repricing_gap",
+    "deposit_beta",
+    "liquidity_buffer",
+    "net_interest_income",
+    "capital_adequacy",
 ]
 MONEY = {"floating_debt_rub", "total_debt_rub", "capex_planned_rub", "annual_revenue_rub", "ebitda_rub"}
 RATIOS = {"credit_sales_share", "export_share", "import_share"}

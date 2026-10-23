@@ -13,6 +13,7 @@ from .corpus import AccessDenied
 from .domain import Citation, CompanyProfile, DocumentRef, Evidence, FeatureCandidate, TimeScope
 from .settings import utcnow
 from .storage import Conflict, NotFound, new_id
+from .identity import current_principal, PUBLIC_DEMO_COMPANIES
 
 MAX_FILE_BYTES = 15 * 1024 * 1024
 EXTENSIONS = {".pdf", ".docx", ".pptx", ".xlsx", ".csv", ".txt", ".md"}
@@ -46,6 +47,11 @@ class Workspace:
             CREATE TABLE IF NOT EXISTS favorites (
               company_id TEXT NOT NULL,event_id TEXT NOT NULL,run_id TEXT,created_at TEXT NOT NULL,
               PRIMARY KEY(company_id,event_id));
+            CREATE TABLE IF NOT EXISTS company_access(company_id TEXT PRIMARY KEY,user_id TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS employee_profiles(user_id TEXT PRIMARY KEY,company_id TEXT NOT NULL,
+              full_name TEXT NOT NULL,company_name TEXT NOT NULL,job_title TEXT NOT NULL,role TEXT NOT NULL,created_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS company_context(company_id TEXT PRIMARY KEY,text TEXT NOT NULL,website TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS user_favorites(user_id TEXT NOT NULL,company_id TEXT NOT NULL,event_id TEXT NOT NULL,run_id TEXT,created_at TEXT NOT NULL,PRIMARY KEY(user_id,company_id,event_id));
             CREATE INDEX IF NOT EXISTS files_company ON company_files(company_id,created_at);
             """)
 
@@ -55,12 +61,61 @@ class Workspace:
 
     def list_custom(self):
         with self.store.connection() as db:
-            return [
+            values = [
                 {"company_id": r["id"], "label": r["name"], "source": "company_upload", "synthetic": False}
                 for r in db.execute("SELECT * FROM custom_companies ORDER BY created_at DESC")
             ]
+        principal = current_principal.get()
+        return (
+            values
+            if principal is None
+            else [
+                x for x in values if self.owned(x["company_id"]) or x["company_id"] in PUBLIC_DEMO_COMPANIES
+            ]
+        )
 
-    def create_company(self, name):
+    def owned(self, company_id):
+        principal = current_principal.get()
+        if principal is None:
+            return True
+        with self.store.connection() as db:
+            return bool(
+                db.execute(
+                    "SELECT 1 FROM company_access WHERE company_id=? AND user_id=?",
+                    (company_id, principal.user_id),
+                ).fetchone()
+            )
+
+    def require_writable(self, company_id):
+        if not self.owned(company_id):
+            raise AccessDenied("company_read_only")
+
+    def context(self, company_id):
+        with self.store.connection() as db:
+            row = db.execute(
+                "SELECT text,website,updated_at FROM company_context WHERE company_id=?", (company_id,)
+            ).fetchone()
+        return (
+            {"description": row[0], "website": row[1], "updated_at": row[2]}
+            if row
+            else {"description": "", "website": "", "updated_at": None}
+        )
+
+    def save_context(self, company_id, description, website):
+        self.require_writable(company_id)
+        if not self.custom_exists(company_id):
+            raise AccessDenied("create_own_company_first")
+        website = website.strip()
+        if website and (not website.startswith("https://") or len(website) > 300):
+            raise UploadError("website_requires_https")
+        with self.store.connection() as db:
+            db.execute(
+                "INSERT INTO company_context VALUES(?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET text=excluded.text,website=excluded.website,updated_at=excluded.updated_at",
+                (company_id, description.strip(), website, utcnow().isoformat()),
+            )
+            db.execute("UPDATE company_versions SET version=version+1 WHERE company_id=?", (company_id,))
+
+    def create_company(self, name, owner_id=None):
         name = name.strip()
         if not 2 <= len(name) <= 160:
             raise UploadError("invalid_company_name")
@@ -68,6 +123,10 @@ class Workspace:
         with self.store.connection() as db:
             db.execute("INSERT INTO custom_companies VALUES(?,?,?)", (cid, name, utcnow().isoformat()))
             db.execute("INSERT INTO company_versions VALUES(?,1)", (cid,))
+            principal = current_principal.get()
+            owner_id = owner_id or (principal.user_id if principal else None)
+            if owner_id:
+                db.execute("INSERT INTO company_access VALUES(?,?)", (cid, owner_id))
         return {"company_id": cid, "label": name, "source": "company_upload", "synthetic": False}
 
     def _custom_base(self, company_id):
@@ -112,6 +171,24 @@ class Workspace:
             unresolved_identity=False,
             source_snapshot_ids=[did],
         )
+        context = self.context(company_id)
+        context_text = context["description"]
+        if context["website"]:
+            context_text += "\nСайт, указанный пользователем: " + context["website"]
+        if context_text.strip():
+            text += "\n" + context_text.strip()
+            doc = doc.model_copy(update={"sha256": hashlib.sha256(text.encode()).hexdigest()})
+            ev = ev.model_copy(update={"quote": text})
+            profile.features.append(
+                FeatureCandidate(
+                    feature_id=company_id + "_description",
+                    name="company_description",
+                    text_value=context_text.strip(),
+                    status="self_reported",
+                    period=TimeScope(),
+                    source_refs=[Citation(kind="evidence", ref_id=eid)],
+                )
+            )
         return {
             "profile": profile.model_dump(mode="json"),
             "documents": [doc.model_dump(mode="json")],
@@ -149,6 +226,7 @@ class Workspace:
             }
         # Deep copy: preview/snapshots must never mutate a source bundle or old run.
         base = json.loads(json.dumps(base, ensure_ascii=False))
+        base.setdefault("document_chunks", {})
         profile = CompanyProfile.model_validate(base["profile"])
         candidates = defaultdict(list)
         for feature in profile.features:
@@ -168,6 +246,7 @@ class Workspace:
             base["document_text"][doc["document_id"]] = "\n".join(
                 c["text"] for c in json.loads(file["chunks_json"])
             )
+            base["document_chunks"][doc["document_id"]] = json.loads(file["chunks_json"])
             profile.source_snapshot_ids.append(doc["document_id"])
             for raw in json.loads(file["features_json"]):
                 feature = FeatureCandidate.model_validate(raw)
@@ -264,6 +343,7 @@ class Workspace:
         return json.loads(row[0])
 
     def add_file(self, company_id, name, content):
+        self.require_writable(company_id)
         name = Path(name.replace("\\", "/")).name[:180]
         ext = Path(name).suffix.lower()
         if ext not in EXTENSIONS:
@@ -370,6 +450,10 @@ class Workspace:
             if (
                 db.execute("SELECT 1 FROM runs WHERE status='RUNNING'").fetchone()
                 or db.execute("SELECT 1 FROM document_jobs WHERE status='RUNNING'").fetchone()
+                or (
+                    db.execute("SELECT 1 FROM sqlite_master WHERE name='research_jobs'").fetchone()
+                    and db.execute("SELECT 1 FROM research_jobs WHERE status='RUNNING'").fetchone()
+                )
             ):
                 return None
             row = db.execute(
@@ -432,6 +516,7 @@ class Workspace:
             )
 
     def retry_document(self, company_id, document_id):
+        self.require_writable(company_id)
         self.file_row(company_id, document_id)
         info = self.file_info(company_id, document_id)
         if info["status"] not in {"FAILED", "READY"}:
@@ -445,6 +530,7 @@ class Workspace:
         return self.file_info(company_id, document_id)
 
     def set_file_active(self, company_id, document_id, active):
+        self.require_writable(company_id)
         row = self.file_row(company_id, document_id)
         allowed = "EXCLUDED" if active else "READY"
         target = "READY" if active else "EXCLUDED"

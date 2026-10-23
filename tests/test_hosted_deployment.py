@@ -31,6 +31,7 @@ def test_team_session_is_signed_expiring_and_invalidated_by_password_change(monk
 def test_hosted_login_blocks_data_but_allows_health_and_secure_login(service, monkeypatch):
     monkeypatch.setenv("ALFA_PUBLIC_DEPLOYMENT", "1")
     monkeypatch.setenv("ALFA_ACCESS_PASSWORD", PASSWORD)
+    monkeypatch.setenv("ALFA_SESSION_SECRET", "synthetic-server-secret-never-use-outside-tests")
     monkeypatch.setenv("RENDER_EXTERNAL_HOSTNAME", "test-app.onrender.com")
     app = create_app(service.settings)
     with TestClient(app, base_url="https://test-app.onrender.com") as client:
@@ -40,10 +41,22 @@ def test_hosted_login_blocks_data_but_allows_health_and_secure_login(service, mo
         assert page.status_code == 303 and page.headers["location"] == "/auth/login"
         assert "{{APP_TOKEN}}" not in client.get("/auth/login").text
         assert client.post("/auth/login", data={"password": "wrong"}).status_code == 401
-        assert client.post(
-            "/auth/login", data={"password": PASSWORD}, headers={"Origin": "https://outside.example"}
-        ).status_code == 403
-        response = client.post("/auth/login", data={"password": PASSWORD}, follow_redirects=False)
+        assert (
+            client.post(
+                "/auth/login", data={"password": PASSWORD}, headers={"Origin": "https://outside.example"}
+            ).status_code
+            == 403
+        )
+        response = client.post(
+            "/auth/login",
+            data={
+                "password": PASSWORD,
+                "full_name": "Тестовый Пользователь",
+                "company_name": "Тестовая компания",
+                "job_title": "CFO",
+            },
+            follow_redirects=False,
+        )
         assert response.status_code == 303
         cookie = response.headers["set-cookie"].lower()
         assert "secure" in cookie and "httponly" in cookie and "samesite=strict" in cookie
@@ -88,10 +101,12 @@ def test_bootstrap_integrity_and_existing_state_is_never_overwritten(tmp_path):
         db.execute("CREATE TABLE marker(value TEXT)")
         db.execute("INSERT INTO marker VALUES('original')")
     (seed / "uploads/file.txt").write_text("synthetic")
-    manifest = {"files": {
-        name: hashlib.sha256((seed / name).read_bytes()).hexdigest()
-        for name in ("agent.sqlite3", "uploads/file.txt")
-    }}
+    manifest = {
+        "files": {
+            name: hashlib.sha256((seed / name).read_bytes()).hexdigest()
+            for name in ("agent.sqlite3", "uploads/file.txt")
+        }
+    }
     (seed / "manifest.json").write_text(json.dumps(manifest))
     settings = Settings(root=tmp_path, state_dir=disk)
     prepare_state(settings)

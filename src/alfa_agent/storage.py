@@ -235,6 +235,10 @@ class Store:
             if (
                 db.execute("SELECT 1 FROM runs WHERE status='RUNNING' LIMIT 1").fetchone()
                 or db.execute("SELECT 1 FROM document_jobs WHERE status='RUNNING' LIMIT 1").fetchone()
+                or (
+                    db.execute("SELECT 1 FROM sqlite_master WHERE name='research_jobs'").fetchone()
+                    and db.execute("SELECT 1 FROM research_jobs WHERE status='RUNNING' LIMIT 1").fetchone()
+                )
             ):
                 return None
             if not row:

@@ -1,0 +1,1175 @@
+"""Own research controller: bounded planning, source tools, verification and replanning."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import re
+import time
+import unicodedata
+from decimal import Decimal
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from .bank_library import BankLibrary, terms
+from .gateway import GatewayError
+from .public_sources import PublicSourceError, TOPICS, page_source, search_headlines
+from .settings import utcnow
+from .storage import Conflict, NotFound, new_id
+from .research_rules import RULES, BANK_ROLES, COMPANY_ROLES
+
+
+class Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ResearchRequest(Strict):
+    company_id: str = Field(max_length=100)
+    question: str = Field(min_length=12, max_length=1500)
+    job_title: str = Field(default="CFO", min_length=2, max_length=120)
+    public_search: bool = True
+    source_urls: list[str] = Field(default_factory=list, max_length=3)
+    news_text: str = Field(default="", max_length=10000)
+    parent_id: str | None = Field(default=None, max_length=100)
+
+
+class ResearchAction(Strict):
+    tool: Literal["company", "bank", "public", "read_source", "write", "ask_user"]
+    reason: str = Field(min_length=5, max_length=350)
+    query: str = Field(default="", max_length=350)
+    topic: Literal[
+        "company", "rates", "inflation", "demand", "labor", "commodities", "competitors", "regulation"
+    ] = "company"
+    source_id: str = Field(default="", max_length=100)
+    questions: list[str] = Field(default_factory=list, max_length=3)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def short_observation(cls, value):
+        return value[:350] if isinstance(value, str) else value
+
+
+class ResearchPlan(Strict):
+    rationale: str = Field(max_length=600)
+    actions: list[ResearchAction] = Field(min_length=1, max_length=5)
+
+    @field_validator("rationale", mode="before")
+    @classmethod
+    def short_plan_note(cls, value):
+        return value[:600] if isinstance(value, str) else value
+
+
+class SourceQuote(Strict):
+    anchor_id: str = Field(default="", max_length=20)
+    source_id: str = Field(default="", max_length=100)
+    quote: str = Field(default="", max_length=650)
+
+
+class Finding(Strict):
+    finding_id: str = Field(pattern=r"^f[1-9][0-9]?$", max_length=3)
+    kind: Literal["source_fact", "bank_view", "analysis", "hypothesis"]
+    statement_type: Literal["fact", "forecast", "assessment", "conditional"]
+    text: str = Field(min_length=15, max_length=800)
+    why_company: str = Field(min_length=10, max_length=500)
+    consequence: str = Field(min_length=10, max_length=600)
+    condition: str = Field(default="", max_length=400)
+    priority: Literal["check_now", "monitor", "background"]
+    citations: list[SourceQuote] = Field(min_length=1, max_length=3)
+
+
+class ResearchRole(Strict):
+    role: Literal["cfo", "treasurer", "ceo", "coo", "cco"]
+    focus: str = Field(min_length=5, max_length=150)
+    interpretation: str = Field(min_length=10, max_length=600)
+    actions: list[str] = Field(min_length=1, max_length=3)
+    finding_ids: list[str] = Field(min_length=1, max_length=5)
+
+
+class ResearchDraft(Strict):
+    title: str = Field(min_length=10, max_length=160)
+    summary: str = Field(min_length=20, max_length=850)
+    findings: list[Finding] = Field(min_length=1, max_length=6)
+    role_views: list[ResearchRole] = Field(min_length=1, max_length=5)
+    missing_data: list[str] = Field(default_factory=list, max_length=7)
+    limitations: list[str] = Field(default_factory=list, max_length=7)
+    follow_up_questions: list[str] = Field(default_factory=list, max_length=3)
+
+
+class ResearchVerdict(Strict):
+    approved: bool
+    issues: list[str] = Field(default_factory=list, max_length=8)
+    scope_note: str = Field(min_length=10, max_length=600)
+
+    @field_validator("scope_note", mode="before")
+    @classmethod
+    def short_scope_note(cls, value):
+        return value[:600] if isinstance(value, str) else value
+
+
+class MechanismChoice(Strict):
+    mechanism: Literal[
+        "bank_alm",
+        "bank_liquidity",
+        "bank_credit_risk",
+        "corporate_funding",
+        "cash_cycle",
+        "demand",
+        "costs",
+        "fx",
+        "competition",
+        "regulation",
+    ]
+    anchor_ids: list[str] = Field(min_length=1, max_length=2)
+    priority: Literal["check_now", "monitor", "background"]
+
+
+class ResearchSelection(Strict):
+    findings: list[MechanismChoice] = Field(min_length=1, max_length=3)
+    bank_anchor_id: str = ""
+
+
+def selection_schema(ledger, bank_company):
+    schema = ResearchSelection.model_json_schema()
+    allowed = [
+        k
+        for k in RULES
+        if (k not in {"corporate_funding", "cash_cycle"} if bank_company else not k.startswith("bank_"))
+    ]
+    props = schema["$defs"]["MechanismChoice"]["properties"]
+    props["mechanism"]["enum"] = allowed
+    props["anchor_ids"]["items"] = {"type": "string", "enum": [a["anchor_id"] for a in ledger]}
+    schema["properties"]["bank_anchor_id"]["enum"] = [""] + [
+        a["anchor_id"] for a in ledger if a["kind"] == "bank_claim"
+    ]
+    return schema
+
+
+def assemble_research(selection, ledger, request, snapshot):
+    anchors = {a["anchor_id"]: a for a in ledger}
+    context = next((a for a in ledger if a["kind"] == "company_evidence"), None)
+    findings, needs, focuses, used = [], [], [], set()
+
+    def citation(anchor):
+        return SourceQuote(
+            anchor_id=anchor["anchor_id"], source_id=anchor["source_id"], quote=anchor["quote"]
+        )
+
+    for choice in selection.findings:
+        if choice.mechanism in used:
+            raise ValueError("duplicate_mechanism")
+        used.add(choice.mechanism)
+        if request["bank_company"] != choice.mechanism.startswith("bank_") and choice.mechanism in {
+            "bank_alm",
+            "bank_liquidity",
+            "bank_credit_risk",
+            "corporate_funding",
+            "cash_cycle",
+        }:
+            raise ValueError("mechanism_not_applicable_to_company_type")
+        chosen = [anchors.get(x) for x in choice.anchor_ids]
+        if not all(chosen):
+            raise ValueError("unknown_citation_anchor")
+        rule = RULES[choice.mechanism]
+        if not re.search(rule["keywords"], " ".join(a["quote"] for a in chosen), re.I):
+            raise ValueError("evidence_does_not_match_mechanism:" + choice.mechanism)
+        if context and context not in chosen:
+            chosen.append(context)
+        findings.append(
+            Finding(
+                finding_id="f" + str(len(findings) + 1),
+                kind="analysis",
+                statement_type="conditional",
+                text=rule["text"],
+                why_company=rule["why"],
+                consequence=rule["effect"],
+                condition=rule["condition"],
+                priority=choice.priority,
+                citations=[citation(a) for a in chosen],
+            )
+        )
+        needs.extend(rule["needs"])
+        focuses.append(rule["focus"])
+    limitations = [
+        "Вывод построен как условный сценарий по проверяемым правилам; фактический знак и денежный эффект по компании не рассчитаны."
+    ]
+    selected_bank = selection.bank_anchor_id or next(
+        (
+            aid
+            for c in selection.findings
+            for aid in c.anchor_ids
+            if anchors.get(aid, {}).get("kind") == "bank_claim"
+        ),
+        "",
+    )
+    if selected_bank:
+        anchor = anchors.get(selected_bank)
+        if not anchor or anchor["kind"] != "bank_claim":
+            raise ValueError("bank_anchor_not_attributed")
+        ctype = "forecast" if anchor["claim_type"] == "FORECAST" else "assessment"
+        stamp = (
+            datetime.fromisoformat(anchor["published_at"]).strftime("%d.%m.%Y")
+            if anchor.get("published_at")
+            else "с неизвестной датой"
+        )
+        prefix = (
+            "В обзоре от "
+            + stamp
+            + (" банк сформулировал прогноз" if ctype == "forecast" else " банк дал оценку")
+        )
+        findings.append(
+            Finding(
+                finding_id="f" + str(len(findings) + 1),
+                kind="bank_view",
+                statement_type=ctype,
+                text=prefix + ": «" + anchor["quote"] + "». Это позиция на дату материала.",
+                why_company="Датированный банковский взгляд задаёт основание для сценарной проверки; условия конкретной компании проверяются отдельно.",
+                consequence="Если предпосылки обзора применимы к плановому периоду, их стоит сопоставить с внутренними сценариями; актуальность позиции не подтверждена.",
+                condition="Сохранены исходный период и модальность; прогноз не является подтверждением свершившегося события.",
+                priority="background",
+                citations=[citation(anchor)],
+            )
+        )
+    else:
+        limitations.append(
+            "Для выбранного вопроса не выбрана отдельная структурированная позиция банка; фрагменты OCR показаны как источники, их авторская атрибуция требует проверки."
+        )
+    known = {
+        f["name"]
+        for f in snapshot["profile"]["features"]
+        if f["status"] not in {"missing", "conflicting"}
+        and not re.search(r"не предостав|нет данн|неизвест|не указан", f.get("text_value") or "", re.I)
+    }
+    missing = list(dict.fromkeys(label for name, label in needs if name not in known))[:7]
+    if not any(a["kind"] == "public_page" for a in ledger):
+        limitations.append(
+            "Свежие внешние страницы не прочитаны; исследование ограничено материалами кейса и компании."
+        )
+    if any(
+        "синтетич" in a["quote"].casefold() for a in ledger if a["kind"] in {"company_evidence", "user_news"}
+    ):
+        limitations.append(
+            "В контексте есть явно синтетический тестовый материал; он не подтверждает реальные финансовые показатели компании."
+        )
+    roles = []
+    all_ids = [f.finding_id for f in findings if f.kind == "analysis"]
+    for role, (focus, first, second) in (BANK_ROLES if request["bank_company"] else COMPANY_ROLES).items():
+        roles.append(
+            ResearchRole(
+                role=role,
+                focus=focus,
+                interpretation="Применимость к задаче: "
+                + "; ".join(focuses)
+                + ". Решение зависит от подтверждённой экспозиции компании и условий выбранных источников.",
+                actions=[first + ": " + focuses[0].lower(), second],
+                finding_ids=all_ids,
+            )
+        )
+    return ResearchDraft(
+        title=focuses[0] + ": что проверить",
+        summary="Приоритеты проверки: "
+        + "; ".join(focuses)
+        + ". Датированные рыночные материалы задают сценарии. Их применимость и размер эффекта для компании нужно сопоставить с внутренними данными.",
+        findings=findings,
+        role_views=roles,
+        missing_data=missing,
+        limitations=limitations,
+        follow_up_questions=[
+            "Какие внутренние данные помогут проверить этот сценарий?",
+            "Какие предпосылки могут изменить вывод для нашей компании?",
+        ],
+    )
+
+
+class ResearchAnswer(Strict):
+    answer: str = Field(min_length=2, max_length=5000)
+    expected_version: int = Field(ge=1)
+
+
+def normalized(value):
+    return " ".join(unicodedata.normalize("NFKC", value).split())
+
+
+def numbers(value):
+    date_tokens = []
+
+    def calendar(match):
+        date_tokens.extend(re.split(r"[./-]", match.group()))
+        return " "
+
+    without_dates = re.sub(r"\b(?:\d{1,2}[./]\d{1,2}[./]\d{4}|\d{4}-\d{2}-\d{2})\b", calendar, value)
+    tokens = re.findall(r"(?<![\w.,])[-+−]?\d+(?:[.,]\d+)?", without_dates) + date_tokens
+    return {str(Decimal(x.replace(",", ".").replace("−", "-")).normalize()) for x in tokens}
+
+
+def evidence_ledger(sources, question):
+    """The host owns quotations. The model selects small opaque anchors, not new quotes."""
+    ledger, wanted = [], terms(question)
+    ranked_sources = sorted(
+        sources,
+        key=lambda s: (
+            bool(s.get("provided_for_current_question")),
+            len(terms(s.get("text", "")) & wanted),
+            s["kind"] == "bank_claim",
+        ),
+        reverse=True,
+    )
+    context = next((s for s in sources if s["kind"] == "company_evidence"), None)
+    if context:
+        ranked_sources = [context] + [s for s in ranked_sources if s is not context]
+    for source in ranked_sources:
+        if source["kind"] in {"url_to_read", "search_lead"}:
+            continue
+        text = source.get("text", "")
+        candidates = []
+        for start in range(0, len(text), 480):
+            begin = 0 if not start else text.find(" ", start)
+            if begin < 0:
+                continue
+            end = min(begin + 580, len(text))
+            if end < len(text):
+                end = max(begin, text.rfind(" ", begin, end))
+            quote = text[begin:end].strip()
+            if len(quote) < 30:
+                continue
+            candidates.append((len(terms(quote) & wanted), quote))
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        for _, quote in candidates[:2]:
+            ledger.append(
+                {
+                    "anchor_id": "a" + str(len(ledger) + 1),
+                    "source_id": source["source_id"],
+                    "quote": quote,
+                    "kind": source["kind"],
+                    "title": source.get("title"),
+                    "published_at": source.get("published_at"),
+                    "page": source.get("page"),
+                    "claim_type": source.get("claim_type"),
+                    "publisher": source.get("publisher"),
+                    "bank_owner_explicit": source["kind"] == "bank_claim"
+                    or (
+                        source["kind"] == "bank_excerpt"
+                        and bool(re.search(r"\b(мы|наш\w*|ожидаем|полагаем|считаем)\b", quote, re.I))
+                    ),
+                }
+            )
+        if len(ledger) >= 32:
+            break
+    return ledger[:32]
+
+
+def bind_citations(draft, ledger):
+    anchors = {a["anchor_id"]: a for a in ledger}
+    for finding in draft.findings:
+        for citation in finding.citations:
+            if citation.anchor_id and citation.anchor_id in anchors:
+                anchor = anchors[citation.anchor_id]
+                citation.source_id, citation.quote = anchor["source_id"], anchor["quote"]
+
+
+def validate_draft(draft, sources, *, bank_company=False):
+    """Structural/evidence checks complement, and do not replace, semantic verification."""
+    by_id = {s["source_id"]: s for s in sources}
+    issues, found, quoted = [], {}, []
+    for finding in draft.findings:
+        if finding.finding_id in found:
+            issues.append("duplicate_finding_id")
+        found[finding.finding_id] = finding
+        local = []
+        explicit_bank_owner, bank_source_present = False, False
+        for citation in finding.citations:
+            source = by_id.get(citation.source_id)
+            if not source or source["kind"] in {"search_lead", "url_to_read"}:
+                issues.append("unread_or_unknown_source:" + citation.source_id)
+                continue
+            if normalized(citation.quote) not in normalized(source["text"]):
+                issues.append("quote_not_in_source:" + citation.source_id)
+                continue
+            local.append(citation.quote)
+            local.append(
+                (source.get("published_at") or "") + " " + (source.get("publication_date_raw") or "")
+            )
+            quoted.append(citation.quote)
+            quoted.append(local[-1])
+            if finding.kind == "bank_view":
+                if source["kind"] in {"bank_excerpt", "bank_claim"}:
+                    bank_source_present = True
+                    explicit_bank_owner |= source["kind"] == "bank_claim" or bool(
+                        re.search(
+                            r"\b(мы|наш\w*|ожидаем|полагаем|считаем|прогнозируем)\b", citation.quote, re.I
+                        )
+                    )
+        if finding.kind == "bank_view" and not explicit_bank_owner:
+            issues.append(
+                "bank_owner_not_explicit_in_quote" if bank_source_present else "bank_owner_not_supported"
+            )
+        text = finding.text + " " + finding.why_company + " " + finding.consequence + " " + finding.condition
+        if not numbers(text) <= numbers(" ".join(local)):
+            issues.append("unsupported_number:" + finding.finding_id)
+        if finding.kind in {"analysis", "hypothesis"} and finding.statement_type != "conditional":
+            issues.append("interpretation_must_be_conditional:" + finding.finding_id)
+        if finding.kind in {"analysis", "hypothesis"} and not finding.condition.strip():
+            issues.append("interpretation_needs_condition:" + finding.finding_id)
+        if finding.statement_type == "forecast" and finding.kind == "source_fact":
+            issues.append("forecast_not_a_fact:" + finding.finding_id)
+    if not numbers(draft.title + " " + draft.summary) <= numbers(" ".join(quoted)):
+        issues.append("unsupported_summary_number")
+    roles = set()
+    for view in draft.role_views:
+        if view.role in roles:
+            issues.append("duplicate_role")
+        roles.add(view.role)
+        if any(fid not in found for fid in view.finding_ids):
+            issues.append("unknown_role_finding")
+            continue
+        evidence = " ".join(
+            c.quote + " " + (by_id.get(c.source_id, {}).get("published_at") or "")
+            for fid in view.finding_ids
+            for c in found[fid].citations
+        )
+        if not numbers(view.focus + " " + view.interpretation + " ".join(view.actions)) <= numbers(evidence):
+            issues.append("unsupported_role_number:" + view.role)
+    if bank_company and re.search(r"экономи\w* (?:на |по )?процент\w* расход\w*", draft.summary, re.I):
+        issues.append("bank_alm_cannot_be_replaced_with_corporate_debt_formula")
+    return list(dict.fromkeys(issues))
+
+
+class ResearchService:
+    def __init__(self, service):
+        self.service, self.store, self.settings = service, service.store, service.settings
+        self.bank = BankLibrary(service.settings.root)
+        with self.store.connection() as db:
+            db.executescript("""
+            CREATE TABLE IF NOT EXISTS research_jobs(
+              id TEXT PRIMARY KEY,tenant TEXT NOT NULL,company_id TEXT NOT NULL,
+              idem TEXT NOT NULL,payload_hash TEXT NOT NULL,input_json TEXT NOT NULL,
+              state_json TEXT NOT NULL,result_json TEXT,status TEXT NOT NULL,version INTEGER NOT NULL,
+              created_at TEXT NOT NULL,lease_until REAL,favorite INTEGER NOT NULL DEFAULT 0,
+              UNIQUE(tenant,idem));
+            CREATE INDEX IF NOT EXISTS research_queue ON research_jobs(status,created_at);
+            """)
+
+    def create(self, request, idem):
+        self.service.authorize_company(request.company_id)
+        raw = request.model_dump(mode="json")
+        digest = hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()
+        with self.store.connection() as db:
+            old = db.execute(
+                "SELECT id,payload_hash FROM research_jobs WHERE tenant=? AND idem=?",
+                (self.service.tenant, idem),
+            ).fetchone()
+        if old:
+            if old["payload_hash"] != digest:
+                raise Conflict("idempotency_payload_mismatch")
+            return self.get(old["id"])
+        with self.store.connection() as db:
+            pending = db.execute(
+                "SELECT count(*) FROM research_jobs WHERE tenant=? AND status IN ('QUEUED','RUNNING','WAITING_INPUT')",
+                (self.service.tenant,),
+            ).fetchone()[0]
+            total = db.execute(
+                "SELECT count(*) FROM research_jobs WHERE status IN ('QUEUED','RUNNING')"
+            ).fetchone()[0]
+        if pending >= 3 or total >= 20:
+            raise Conflict("research_queue_limit")
+        if not request.parent_id and any(
+            f["status"] in {"QUEUED", "RUNNING", "DEFERRED_BUDGET"}
+            for f in self.service.workspace.files(request.company_id)
+        ):
+            raise Conflict("company_documents_processing")
+        if any(not u.startswith("https://") or len(u) > 1500 for u in request.source_urls):
+            raise ValueError("public_https_required")
+        parent = self.get(request.parent_id) if request.parent_id else None
+        if parent and parent["company_id"] != request.company_id:
+            raise Conflict("follow_up_company_mismatch")
+        if parent:
+            previous_request = self._row(request.parent_id)["input"]
+            snapshot = self.service.workspace.load_snapshot(
+                previous_request["snapshot_id"], request.company_id
+            )
+            snapshot["snapshot_id"] = previous_request["snapshot_id"]
+        else:
+            snapshot = self.service.workspace.snapshot(request.company_id, self.service.corpus, persist=True)
+        company_name = next(
+            (f.get("text_value") for f in snapshot["profile"]["features"] if f["name"] == "company_name"),
+            request.company_id,
+        )
+        raw.update(
+            snapshot_id=snapshot["snapshot_id"],
+            as_of=utcnow().isoformat(),
+            company_name=company_name,
+            bank_company=bool(re.search(r"банк|\bbank\b", company_name, re.I)),
+        )
+        if parent and parent.get("result"):
+            raw["previous_summary"] = parent["result"]["summary"]
+        sources = []
+        if parent:
+            sources = [{**s, "provided_for_current_question": False} for s in parent["sources"]]
+        for url in request.source_urls:
+            sources.append(
+                {
+                    "source_id": new_id("input_url"),
+                    "kind": "url_to_read",
+                    "url": url,
+                    "title": "Ссылка пользователя",
+                    "text": "",
+                    "provided_for_current_question": True,
+                }
+            )
+        website = self.service.workspace.context(request.company_id)["website"]
+        if website and website not in request.source_urls:
+            if not any(s.get("url") == website for s in sources):
+                sources.append(
+                    {
+                        "source_id": new_id("company_website"),
+                        "kind": "url_to_read",
+                        "url": website,
+                        "title": "Сайт, указанный компанией",
+                        "text": "",
+                    }
+                )
+        if request.news_text.strip():
+            sid = (
+                new_id("input_news") if any(s["source_id"] == "input_news" for s in sources) else "input_news"
+            )
+            sources.append(
+                {
+                    "source_id": sid,
+                    "kind": "user_news",
+                    "title": "Новость, предоставленная пользователем",
+                    "publisher": "Пользователь",
+                    "published_at": None,
+                    "text": request.news_text,
+                    "review_status": "user_supplied_unverified",
+                    "provided_for_current_question": True,
+                    "limitations": "Первоисточник и дата события не подтверждены независимо.",
+                }
+            )
+        if len(sources) > 64:
+            raise Conflict("research_context_limit")
+        state = {
+            "phase": "PLAN",
+            "llm_calls": 0,
+            "tool_calls": 0,
+            "replans": 0,
+            "sources": sources,
+            "observations": [],
+            "issues": [],
+            "questions": [],
+            "error_code": None,
+            "next_eligible_at": None,
+            "used_tools": [],
+            "verification": None,
+        }
+        run_id = new_id("research")
+        with self.store.connection() as db:
+            db.execute(
+                "INSERT INTO research_jobs(id,tenant,company_id,idem,payload_hash,input_json,state_json,status,version,created_at) VALUES(?,?,?,?,?,?,?,'QUEUED',1,?)",
+                (
+                    run_id,
+                    self.service.tenant,
+                    request.company_id,
+                    idem,
+                    digest,
+                    json.dumps(raw, ensure_ascii=False),
+                    json.dumps(state, ensure_ascii=False),
+                    utcnow().isoformat(),
+                ),
+            )
+        self.store.audit(
+            run_id, "PLAN", "queued", {"company_id": request.company_id, "parent_id": request.parent_id}
+        )
+        return self.get(run_id)
+
+    def _row(self, run_id, *, tenant=None):
+        with self.store.connection() as db:
+            row = db.execute(
+                "SELECT * FROM research_jobs WHERE id=? AND tenant=?", (run_id, tenant or self.service.tenant)
+            ).fetchone()
+        if not row:
+            raise NotFound("research_not_found")
+        result = dict(row)
+        for key in ("input_json", "state_json", "result_json"):
+            value = result.pop(key)
+            result[key.removesuffix("_json")] = json.loads(value) if value else None
+        return result
+
+    def get(self, run_id):
+        row = self._row(run_id)
+        self.service.authorize_company(row["company_id"])
+        state = row["state"]
+        with self.store.connection() as db:
+            trace = [
+                {"at": r["at"], "node": r["node"], "event": r["event"], "data": json.loads(r["data_json"])}
+                for r in db.execute("SELECT * FROM audit WHERE run_id=? ORDER BY seq", (run_id,))
+            ]
+        return {
+            "run_id": row["id"],
+            "company_id": row["company_id"],
+            "company_name": row["input"]["company_name"],
+            "question": row["input"]["question"],
+            "job_title": row["input"]["job_title"],
+            "status": row["status"],
+            "version": row["version"],
+            "created_at": row["created_at"],
+            "favorite": bool(row["favorite"]),
+            "parent_id": row["input"].get("parent_id"),
+            "result": row["result"],
+            "sources": state["sources"],
+            "trace": trace,
+            **{
+                k: state.get(k)
+                for k in (
+                    "phase",
+                    "llm_calls",
+                    "tool_calls",
+                    "replans",
+                    "questions",
+                    "error_code",
+                    "next_eligible_at",
+                    "verification",
+                )
+            },
+        }
+
+    def history(self, company_id):
+        self.service.authorize_company(company_id)
+        with self.store.connection() as db:
+            return [
+                {
+                    "run_id": r["id"],
+                    "status": r["status"],
+                    "created_at": r["created_at"],
+                    "favorite": bool(r["favorite"]),
+                    "question": json.loads(r["input_json"])["question"],
+                }
+                for r in db.execute(
+                    "SELECT * FROM research_jobs WHERE company_id=? AND tenant=? ORDER BY created_at DESC LIMIT 25",
+                    (company_id, self.service.tenant),
+                )
+            ]
+
+    def set_favorite(self, run_id, value):
+        self.get(run_id)
+        with self.store.connection() as db:
+            db.execute(
+                "UPDATE research_jobs SET favorite=? WHERE id=? AND tenant=?",
+                (int(value), run_id, self.service.tenant),
+            )
+
+    def answer(self, run_id, payload):
+        row = self._row(run_id)
+        if row["status"] != "WAITING_INPUT" or row["version"] != payload.expected_version:
+            raise Conflict("answer_state_changed")
+        state = row["state"]
+        state["sources"].append(
+            {
+                "source_id": new_id("user_answer"),
+                "kind": "company_evidence",
+                "publisher": "Пользователь компании",
+                "title": "Ответ на уточнение",
+                "published_at": utcnow().date().isoformat(),
+                "text": payload.answer,
+                "review_status": "self_reported",
+            }
+        )
+        state.update(phase="PLAN", questions=[])
+        self._save(row, state, status="QUEUED")
+        self.store.audit(run_id, "PLAN", "user_answer_received", {"characters": len(payload.answer)})
+        return self.get(run_id)
+
+    def cancel(self, run_id):
+        row = self._row(run_id)
+        if row["status"] in {"QUEUED", "RUNNING", "WAITING_INPUT", "DEFERRED_BUDGET"}:
+            self._save(row, row["state"], status="CANCELLED")
+        return self.get(run_id)
+
+    def _save(self, row, state, *, status="RUNNING", result=None):
+        with self.store.connection() as db:
+            changed = db.execute(
+                "UPDATE research_jobs SET status=?,state_json=?,result_json=COALESCE(?,result_json),version=version+1,lease_until=? WHERE id=? AND version=? AND status NOT IN ('CANCELLED','SUCCEEDED','PARTIAL')",
+                (
+                    status,
+                    json.dumps(state, ensure_ascii=False),
+                    json.dumps(result, ensure_ascii=False) if result is not None else None,
+                    utcnow().timestamp() + self.settings.lease_seconds,
+                    row["id"],
+                    row["version"],
+                ),
+            )
+            if changed.rowcount != 1:
+                raise Conflict("research_state_changed")
+            db.execute(
+                "UPDATE attempts SET status='consumed' WHERE run_id=? AND status='received'", (row["id"],)
+            )
+        row["version"] += 1
+        row["status"], row["state"] = status, state
+
+    def claim(self):
+        now = utcnow()
+        with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            # A crashed paid request is not silently replayed.
+            for row in db.execute(
+                "SELECT * FROM research_jobs WHERE status='RUNNING' AND lease_until<?", (now.timestamp(),)
+            ).fetchall():
+                state = json.loads(row["state_json"])
+                state.update(error_code="interrupted_manual_retry", phase="FINISHED")
+                db.execute(
+                    "UPDATE research_jobs SET status='FAILED',state_json=?,version=version+1 WHERE id=?",
+                    (json.dumps(state), row["id"]),
+                )
+            for row in db.execute("SELECT * FROM research_jobs WHERE status='DEFERRED_BUDGET'").fetchall():
+                state = json.loads(row["state_json"])
+                if state.get("next_eligible_at") and datetime.fromisoformat(state["next_eligible_at"]) <= now:
+                    db.execute("UPDATE research_jobs SET status='QUEUED' WHERE id=?", (row["id"],))
+            if any(
+                db.execute("SELECT 1 FROM " + table + " WHERE status='RUNNING' LIMIT 1").fetchone()
+                for table in ("runs", "document_jobs", "research_jobs")
+            ):
+                return None
+            row = db.execute(
+                "SELECT * FROM research_jobs WHERE status='QUEUED' ORDER BY created_at LIMIT 1"
+            ).fetchone()
+            if not row:
+                return None
+            db.execute(
+                "UPDATE research_jobs SET status='RUNNING',lease_until=?,version=version+1 WHERE id=?",
+                (now.timestamp() + self.settings.lease_seconds, row["id"]),
+            )
+            run_id, tenant = row["id"], row["tenant"]
+        return self._row(run_id, tenant=tenant)
+
+
+class ResearchEngine:
+    def __init__(self, research, gateway):
+        self.research, self.gateway = research, gateway
+        self.service, self.store, self.settings = research.service, research.store, research.settings
+
+    async def once(self):
+        row = self.research.claim()
+        if row:
+            await self.execute(row)
+            return row["id"]
+        return None
+
+    async def execute(self, row):
+        try:
+            async with asyncio.timeout(self.settings.active_seconds):
+                await self._execute(row)
+        except TimeoutError:
+            current = self.research._row(row["id"], tenant=row["tenant"])
+            if current["status"] == "RUNNING":
+                state = current["state"]
+                state.update(phase="FINISHED", error_code="research_limit")
+                self.research._save(current, state, status="FAILED")
+                self.store.audit(row["id"], "FINISHED", "stopped", {"error_code": "research_limit"})
+
+    async def _execute(self, row):
+        state, request = row["state"], row["input"]
+        start = time.monotonic()
+        snapshot = self.service.workspace.load_snapshot(request["snapshot_id"], row["company_id"])
+
+        def audit(event, data):
+            self.store.audit(row["id"], state["phase"], event, data)
+
+        def save(**kw):
+            self.research._save(row, state, **kw)
+
+        async def invoke(stage, cls, payload, output_schema=None):
+            repair = None
+            for attempt in range(2):
+                if (
+                    state["llm_calls"] >= self.settings.max_calls
+                    or time.monotonic() - start > self.settings.active_seconds
+                ):
+                    raise GatewayError("research_limit")
+                state["llm_calls"] += 1
+                save()
+                audit(
+                    "llm_started",
+                    {"stage": stage, "repair": bool(attempt), "model": self.settings.research_model},
+                )
+                raw = await self.gateway.complete(
+                    row["id"], stage, payload, output_schema or cls.model_json_schema(), repair=repair
+                )
+                try:
+                    output = cls.model_validate_json(raw)
+                    audit("llm_validated", {"stage": stage})
+                    return output
+                except ValidationError as error:
+                    repair = {
+                        "raw": raw,
+                        "errors": error.errors(include_input=False, include_context=False, include_url=False),
+                    }
+                    audit(
+                        "json_repair",
+                        {
+                            "stage": stage,
+                            "errors": [
+                                {"type": e["type"], "location": list(e["loc"]), "message": e["msg"]}
+                                for e in repair["errors"]
+                            ],
+                        },
+                    )
+            raise GatewayError("model_contract_invalid")
+
+        def add_sources(items):
+            by_id = {s["source_id"]: s for s in state["sources"]}
+            for item in items:
+                item.setdefault("source_id", new_id("source"))
+                item.setdefault("retrieved_at", utcnow().isoformat())
+                by_id[item["source_id"]] = item
+            if len(by_id) > 64:
+                raise GatewayError("research_context_limit")
+            state["sources"] = list(by_id.values())
+
+        def model_context():
+            sources, budget = [], 28000
+            wanted = terms(request["question"])
+            ranked_sources = sorted(
+                state["sources"],
+                key=lambda s: (
+                    bool(s.get("provided_for_current_question")),
+                    len(terms(s.get("text", "")) & wanted),
+                ),
+                reverse=True,
+            )
+            for source in ranked_sources:
+                item = dict(source)
+                cap = {"public_page": 7000, "user_news": 10000}.get(item["kind"], 2000)
+                item["text"] = item.get("text", "")[: min(cap, max(0, budget))]
+                budget -= len(item["text"])
+                sources.append(item)
+            features = [
+                {**f, "text_value": f.get("text_value", "")[:1800] if f.get("text_value") else None}
+                for f in snapshot["profile"]["features"][:14]
+            ]
+            return {
+                "question": request["question"],
+                "previous_summary": request.get("previous_summary"),
+                "company": {
+                    "name": request["company_name"],
+                    "declared_bank": request["bank_company"],
+                    "identity": "Название и роль сообщены пользователем; независимая идентификация не выполнена.",
+                    "features": features,
+                },
+                "job_title": request["job_title"],
+                "as_of": request["as_of"],
+                "public_search_enabled": request["public_search"],
+                "sources": sources,
+                "observations": state["observations"][-6:],
+                "verification_issues": state["issues"],
+                "used_tools": state["used_tools"],
+                "remaining_tools": self.settings.max_tools - state["tool_calls"],
+                "bank_scope": "Материалы кейса разных дат. OCR не равен полной ручной разметке. Отсутствие свежего обзора не заменяется знаниями модели.",
+            }
+
+        async def tool(action):
+            if state["tool_calls"] >= self.settings.max_tools:
+                return
+            state["phase"] = "SOURCES"
+            state["tool_calls"] += 1
+            save()
+            count, error = 0, None
+            try:
+                if action.tool == "company":
+                    docs = {d["document_id"]: d for d in snapshot["documents"]}
+                    wanted = terms(request["question"] + " " + action.query)
+                    evidence = sorted(
+                        snapshot["evidence"], key=lambda e: len(terms(e["quote"]) & wanted), reverse=True
+                    )[:5]
+                    items = []
+                    for e in evidence:
+                        d = docs[e["document_id"]]
+                        items.append(
+                            {
+                                "source_id": e["evidence_id"],
+                                "kind": "company_evidence",
+                                "title": d["title"],
+                                "publisher": d["publisher"],
+                                "published_at": d.get("published_at"),
+                                "page": e.get("page"),
+                                "locator": e.get("locator"),
+                                "text": e["quote"][:3000],
+                                "review_status": "self_reported_or_case_data",
+                                "document_id": d["document_id"],
+                                "limitations": "Из источников текущей компании. Юридическая идентичность и сведения клиента независимо не подтверждены.",
+                            }
+                        )
+                    passages = []
+                    for did, chunks in snapshot.get("document_chunks", {}).items():
+                        for chunk in chunks:
+                            # Retrieval is over frozen raw text, including fields outside the profile schema.
+                            for offset in range(0, len(chunk["text"]), 1400):
+                                excerpt = chunk["text"][offset : offset + 1800]
+                                score = len(terms(excerpt) & wanted)
+                                passages.append((score, did, chunk, offset, excerpt))
+                    passages.sort(key=lambda x: x[0], reverse=True)
+                    for _, did, chunk, offset, text in passages[:3]:
+                        d = docs[did]
+                        items.append(
+                            {
+                                "source_id": did + "_" + chunk["id"] + "_" + str(offset),
+                                "kind": "company_evidence",
+                                "title": d["title"],
+                                "publisher": d["publisher"],
+                                "published_at": d.get("published_at"),
+                                "page": chunk.get("page"),
+                                "locator": chunk["locator"],
+                                "text": text,
+                                "review_status": "self_reported_document",
+                                "document_id": did,
+                            }
+                        )
+                    add_sources(items)
+                    count = len(items)
+                elif action.tool == "bank":
+                    items = self.research.bank.search(
+                        (action.query or request["question"]) + " " + TOPICS[action.topic]
+                    )
+                    if action.topic == "rates":
+                        for claim in self.service.corpus.claims.values():
+                            document = self.service.corpus.documents[claim.document_id]
+                            quote = self.service.corpus.evidence[claim.evidence_ids[0]].quote
+                            items.append(
+                                {
+                                    "source_id": claim.claim_id,
+                                    "kind": "bank_claim",
+                                    "title": document.title,
+                                    "publisher": document.publisher,
+                                    "published_at": str(document.published_at)
+                                    if document.published_at
+                                    else None,
+                                    "publication_date_raw": document.publication_date_raw,
+                                    "url": document.public_url,
+                                    "page": 1,
+                                    "text": quote,
+                                    "claim_type": claim.claim_type.value,
+                                    "review_status": "pending_human_review",
+                                    "claim_owner": claim.owner.name,
+                                    "forecast_horizon": claim.time_scope.model_dump(mode="json"),
+                                }
+                            )
+                    add_sources(items)
+                    count = len(items)
+                elif action.tool == "public":
+                    if not request["public_search"]:
+                        raise PublicSourceError("public_search_disabled")
+                    if self.service.workspace.case.exists(row["company_id"]) or re.search(
+                        r"\b[UFG]_\d{3,}\b", request["company_name"]
+                    ):
+                        raise PublicSourceError("anonymized_case_company_no_public_resolution")
+                    items = await asyncio.to_thread(search_headlines, request["company_name"], action.topic)
+                    add_sources(items)
+                    count = len(items)
+                elif action.tool == "read_source":
+                    source = next((s for s in state["sources"] if s["source_id"] == action.source_id), None)
+                    if source and source["kind"] not in {"url_to_read", "search_lead"}:
+                        count = 1
+                    elif not source or not request["public_search"]:
+                        raise PublicSourceError("source_not_readable")
+                    else:
+                        item = await asyncio.to_thread(page_source, source["url"])
+                        item["source_id"] = source["source_id"]
+                        item["provided_for_current_question"] = source.get(
+                            "provided_for_current_question", False
+                        )
+                        item["text"] = item["text"][:10000]
+                        add_sources([item])
+                        count = 1
+            except PublicSourceError as failure:
+                error = str(failure)
+            state["used_tools"].append(action.tool)
+            observation = {
+                "tool": action.tool,
+                "reason": action.reason,
+                "sources_added": count,
+                "error": error,
+            }
+            state["observations"].append(observation)
+            audit("tool_completed", observation)
+            save()
+
+        try:
+            for required in ("company", "bank"):
+                if required not in state["used_tools"]:
+                    await tool(
+                        ResearchAction(
+                            tool=required,
+                            reason="Обязательная проверка контекста компании и материалов банка",
+                            query=request["question"][:350],
+                            topic="rates" if request["bank_company"] else "company",
+                        )
+                    )
+            for source in list(state["sources"]):
+                if source["kind"] == "url_to_read" and state["tool_calls"] < self.settings.max_tools:
+                    await tool(
+                        ResearchAction(
+                            tool="read_source",
+                            source_id=source["source_id"],
+                            reason="Прочитать ссылку, явно указанную пользователем",
+                        )
+                    )
+            while True:
+                state["phase"] = "PLAN"
+                plan = await invoke("research_plan", ResearchPlan, model_context())
+                audit(
+                    "plan", {"rationale": plan.rationale, "actions": [a.model_dump() for a in plan.actions]}
+                )
+                # Required context is enforced by the host, never left to a single prompt.
+                for required in ("company", "bank"):
+                    if required not in state["used_tools"]:
+                        await tool(
+                            ResearchAction(
+                                tool=required,
+                                reason="Обязательная проверка контекста компании и материалов банка",
+                                query=request["question"][:350],
+                                topic="rates" if request["bank_company"] else "company",
+                            )
+                        )
+                for action in plan.actions:
+                    if action.tool in {"write", "ask_user"}:
+                        if (
+                            action.tool == "ask_user"
+                            and action.questions
+                            and state["replans"] < self.settings.max_replans
+                        ):
+                            state.update(phase="WAITING_INPUT", questions=action.questions)
+                            save(status="WAITING_INPUT")
+                            audit("question_created", {"questions": action.questions})
+                            return
+                        continue
+                    if (
+                        action.tool in {"company", "bank"}
+                        and state["used_tools"].count(action.tool) >= 1
+                        and not state["issues"]
+                    ):
+                        continue
+                    await tool(action)
+                if (
+                    any(a.tool == "public" for a in plan.actions)
+                    and state["tool_calls"] < self.settings.max_tools
+                    and state["llm_calls"] < self.settings.max_calls - 3
+                ):
+                    continue
+                state["phase"] = "WRITE"
+                context = model_context()
+                ledger = evidence_ledger(state["sources"], request["question"])
+                context["sources"] = [
+                    {
+                        k: s.get(k)
+                        for k in (
+                            "source_id",
+                            "kind",
+                            "title",
+                            "published_at",
+                            "review_status",
+                            "limitations",
+                        )
+                    }
+                    for s in state["sources"]
+                ]
+                context["evidence_ledger"] = ledger
+                context["mechanisms"] = {
+                    name: {"focus": r["focus"], "condition": r["condition"]} for name, r in RULES.items()
+                }
+                selected = await invoke(
+                    "research_write",
+                    ResearchSelection,
+                    context,
+                    selection_schema(ledger, request["bank_company"]),
+                )
+                try:
+                    draft = assemble_research(selected, ledger, request, snapshot)
+                    issues = validate_draft(draft, state["sources"], bank_company=request["bank_company"])
+                except ValueError as failure:
+                    draft, issues = None, [str(failure)]
+                verdict = None
+                if not issues:
+                    state["phase"] = "VERIFY"
+                    verdict = await invoke(
+                        "research_verify",
+                        ResearchVerdict,
+                        {
+                            "task": request["question"],
+                            "company_name": request["company_name"],
+                            "bank_company": request["bank_company"],
+                            "as_of": request["as_of"],
+                            "draft": draft.model_dump(),
+                            "sources": model_context()["sources"],
+                        },
+                    )
+                    if not verdict.approved:
+                        issues = verdict.issues or ["semantic_verification_rejected"]
+                audit(
+                    "verification",
+                    {
+                        "approved": not issues,
+                        "issues": issues,
+                        "scope": verdict.scope_note
+                        if verdict
+                        else "Проверка ссылок, точных цитат, чисел и типов утверждений.",
+                    },
+                )
+                state["verification"] = {
+                    "passed": not issues,
+                    "quote_and_number_checks": True,
+                    "semantic_check": bool(verdict),
+                    "human_verified": False,
+                    "scope": verdict.scope_note if verdict else None,
+                    "warnings": verdict.issues if verdict and verdict.approved else [],
+                }
+                if issues:
+                    state["issues"] = issues
+                    if state["replans"] >= self.settings.max_replans:
+                        raise GatewayError("research_verification_failed")
+                    state["replans"] += 1
+                    audit("replan", {"issues": issues, "number": state["replans"]})
+                    save()
+                    continue
+                result = draft.model_dump(mode="json")
+                limitations = result["limitations"]
+                limitations.extend(state["verification"]["warnings"])
+                limitations.append(
+                    "Автоматически проверены ссылки, цитаты, числовые опоры и согласованность вывода. Независимая истинность источников и полная ручная разметка не подтверждены."
+                )
+                if any(s["kind"] == "bank_excerpt" for s in state["sources"]):
+                    limitations.append(
+                        "Банковские материалы взяты из датированного набора кейса; это не подтверждение актуальной позиции банка на дату исследования."
+                    )
+                if any(o.get("error") for o in state["observations"]):
+                    limitations.append(
+                        "Часть внешних источников недоступна; охват ограничен успешно прочитанными материалами."
+                    )
+                result.update(
+                    as_of=request["as_of"],
+                    profile_as_of=snapshot["profile"]["as_of"],
+                    profile_snapshot_id=request["snapshot_id"],
+                    company_name=request["company_name"],
+                    job_title=request["job_title"],
+                    verification=state["verification"],
+                )
+                state["phase"] = "FINISHED"
+                status = (
+                    "PARTIAL"
+                    if result["missing_data"] or any(o.get("error") for o in state["observations"])
+                    else "SUCCEEDED"
+                )
+                save(status=status, result=result)
+                audit("published", {"status": status, "findings": len(draft.findings), "checks_passed": True})
+                return
+        except GatewayError as error:
+            state.update(error_code=error.code, next_eligible_at=error.retry_at, phase="FINISHED")
+            save(status="DEFERRED_BUDGET" if error.code == "shared_budget_exhausted" else "FAILED")
+            audit("stopped", {"error_code": error.code})
+        except Conflict:
+            return
+        except Exception as error:
+            state.update(error_code="research_internal_error", phase="FINISHED")
+            save(status="FAILED")
+            audit(
+                "stopped", {"error_code": "research_internal_error", "exception_type": type(error).__name__}
+            )

@@ -22,6 +22,8 @@ from .settings import Settings, utcnow
 from .state import RuntimeState
 from .storage import Conflict, Store, new_id
 from .workspace import Workspace
+from .identity import current_principal, PUBLIC_DEMO_COMPANIES, PUBLIC_DEMO_RUNS
+from .storage import NotFound
 
 
 class CreateRun(BaseModel):
@@ -55,8 +57,19 @@ class Service:
         self.corpus.workspace = self.workspace
         # Explicit local demo principal, not Alfa SSO or production authorization.
         self.allowed_companies = frozenset(self.corpus.profiles)
+        from .research import ResearchService
+
+        self.research = ResearchService(self)
 
     def authorize_company(self, company_id):
+        principal = current_principal.get()
+        if (
+            principal
+            and self.workspace.custom_exists(company_id)
+            and company_id not in PUBLIC_DEMO_COMPANIES
+            and not self.workspace.owned(company_id)
+        ):
+            raise AccessDenied("company_not_accessible")
         if (
             company_id not in self.allowed_companies
             and not self.workspace.case.exists(company_id)
@@ -64,12 +77,27 @@ class Service:
         ):
             raise AccessDenied("company_not_accessible")
 
+    @property
+    def tenant(self):
+        principal = current_principal.get()
+        return principal.user_id if principal else "demo"
+
+    def run_row(self, run_id):
+        try:
+            row = self.store.get(run_id, self.tenant)
+        except NotFound:
+            if run_id not in PUBLIC_DEMO_RUNS:
+                raise
+            row = self.store.get(run_id, "demo")
+        self.authorize_company(row["company"])
+        return row
+
     def create(self, payload: CreateRun, idem):
         self.authorize_company(payload.company_id)
         request = payload.model_dump(mode="json")
         with self.store.connection() as db:
             old = db.execute(
-                "SELECT id,input_json FROM runs WHERE tenant='demo' AND idem=?", (idem,)
+                "SELECT id,input_json FROM runs WHERE tenant=? AND idem=?", (self.tenant, idem)
             ).fetchone()
         if old:
             previous = json.loads(old["input_json"])
@@ -80,11 +108,17 @@ class Service:
         if any(f["status"] in {"QUEUED", "RUNNING", "DEFERRED_BUDGET"} for f in files):
             raise Conflict("company_documents_processing")
         snapshot = self.workspace.snapshot(payload.company_id, self.corpus, persist=True)
+        name = next(
+            (f.get("text_value", "") for f in snapshot["profile"]["features"] if f["name"] == "company_name"),
+            "",
+        )
+        if "банк" in name.casefold() or "bank" in name.casefold():
+            raise Conflict("bank_requires_custom_research")
         request["profile_snapshot_id"] = snapshot["snapshot_id"]
         request["as_of"] = utcnow().isoformat()
         state = initial_state(new_id("run"))
         run_id, created = self.store.create(
-            "demo", payload.company_id, idem, request, state.model_dump(mode="json")
+            self.tenant, payload.company_id, idem, request, state.model_dump(mode="json")
         )
         if created:
             self.store.audit(
@@ -96,7 +130,7 @@ class Service:
         return self.get(run_id)
 
     def get(self, run_id):
-        row = self.store.get(run_id)
+        row = self.run_row(run_id)
         self.authorize_company(row["company"])
         self.corpus.load_run_snapshot(row["input"])
         state = RuntimeState.model_validate(row["state"])
@@ -124,7 +158,7 @@ class Service:
             "error_code": state.last_error_code,
             "next_eligible_at": state.next_eligible_at.isoformat() if state.next_eligible_at else None,
             "result": row["result"],
-            "trace": self.store.trace(run_id),
+            "trace": self.store.trace(run_id, row["tenant"]),
         }
 
     def answer(self, run_id, answer: Answer):
@@ -138,7 +172,9 @@ class Service:
                     raise Conflict("answer_id_conflict")
                 # The same answer is accepted once even if the UI retries later.
             else:
-                row = db.execute("SELECT * FROM runs WHERE id=? AND tenant='demo'", (run_id,)).fetchone()
+                row = db.execute(
+                    "SELECT * FROM runs WHERE id=? AND tenant=?", (run_id, self.tenant)
+                ).fetchone()
                 if not row or row["version"] != answer.expected_version or row["status"] != "WAITING_INPUT":
                     raise Conflict("answer_state_changed")
                 state = RuntimeState.model_validate_json(row["state_json"])
