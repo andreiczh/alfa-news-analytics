@@ -1,0 +1,59 @@
+{
+  "checked_at": "2026-10-23T17:42:12.840763+00:00",
+  "deployment": {
+    "service_id": "srv-dbdphesipgvc739mcm80",
+    "url": "https://alfa-business-pulse.onrender.com",
+    "dashboard_url": "https://dashboard.render.com/web/srv-dbdphesipgvc739mcm80",
+    "deploy_id": "dep-dbdpm9oae00c73aj5s7g",
+    "repo": "https://github.com/andreiczh/alfa-news-analytics",
+    "plan": "free",
+    "storage": "ephemeral_demo",
+    "commit": "41b5f5930563ae4fde17ce6b5ea7bff54e027445",
+    "status": "live",
+    "finished_at": "2026-10-23T17:37:53.280996Z"
+  },
+  "tests": {
+    "pytest_passed": 66,
+    "ruff": "passed",
+    "javascript_syntax": "passed",
+    "browser": {
+      "status": "passed",
+      "url": "https://alfa-business-pulse.onrender.com",
+      "checks": [
+        "unauthenticated root requires team login",
+        "secure team login and home screen",
+        "full case CSV counts and explicit ephemeral-storage notice",
+        "both original verified analyses restored with five roles",
+        "case-company UI retains all three source references",
+        "desktop and mobile insight render without horizontal overflow",
+        "live upload processed on Render into a company-specific profile",
+        "live rate scenario verified, five role views and export available"
+      ],
+      "page_errors": [],
+      "live": {
+        "run_id": "run_b52cfc5c9d874854a937",
+        "status": "SUCCEEDED",
+        "llm_calls": 4,
+        "tool_calls": 3,
+        "replans": 0,
+        "document_calls": 1,
+        "feature_count": 9
+      }
+    },
+    "core": {
+      "status": "passed",
+      "core_checks": "no blocking issues",
+      "scenario_rub": "-1972602.74",
+      "run_id": "run_b52cfc5c9d874854a937",
+      "independent_financial_review": false
+    }
+  },
+  "limitations": [
+    "Free ephemeral storage explicitly accepted by user",
+    "Shared team login; not bank SSO",
+    "Only one dated news scenario and selected bank claims",
+    "No new cloud OCR test or load test",
+    "Native Render runtime tested; Docker build not tested"
+  ],
+  "confidence_percent": 95
+}
