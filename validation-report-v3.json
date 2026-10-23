@@ -1,9 +1,9 @@
 {
-  "version": "0.3.0",
-  "checked_at": "2026-10-23T21:39:09.300877+00:00",
-  "scope": "Local release verification; Render verification recorded after deployment",
+  "version": "0.3.2",
+  "checked_at": "2026-10-23T22:31:08.869314+00:00",
+  "scope": "Published Render 0.3.2 end-to-end verification; source and contest audit; controlled prototype only",
   "tests": {
-    "pytest_passed": 92,
+    "pytest_passed": 97,
     "ruff": "passed",
     "javascript_syntax": "passed",
     "locked_install": "uv sync --frozen --offline passed",
@@ -37,6 +37,95 @@
         "all nine bank PDFs linked"
       ],
       "page_errors": []
+    },
+    "pytest_warning": "One Starlette TestClient deprecation warning; no test failure",
+    "cloud_browser": {
+      "total_checks": 24,
+      "core": {
+        "target": "https://alfa-business-pulse.onrender.com",
+        "checks": [
+          "employee login and company context",
+          "manual context saved",
+          "document upload parsed by organizer model",
+          "custom CFO research automatically verified",
+          "bank view kept separate from regulator fact",
+          "public primary page retrieved inside Render runtime",
+          "five consistent role views",
+          "favorite saved",
+          "human readable report export",
+          "mobile without horizontal overflow"
+        ],
+        "page_errors": [],
+        "run_id": "research_405e10719cf743cbad70",
+        "status": "PARTIAL",
+        "llm_calls": 4,
+        "tool_calls": 5,
+        "replans": 0
+      },
+      "review": {
+        "checks": [
+          "signed session restored on browser reload",
+          "quick questions persist per employee and company",
+          "bank position prominent with original quote and date",
+          "missing data reachable directly from summary",
+          "revised result mobile layout",
+          "real anonymized case payments readable and sample read only",
+          "all nine bank PDFs linked"
+        ],
+        "page_errors": []
+      },
+      "extensions": {
+        "target": "https://alfa-business-pulse.onrender.com",
+        "checked_at": "2026-10-23T22:28:15.097Z",
+        "checks": [
+          "uploaded document profile available after reload",
+          "live followup keeps parent sources and frozen profile",
+          "new question starts with empty event and URL fields",
+          "unseen supplier cost event uses new evidence and CFO budget focus",
+          "feedback submitted for new event",
+          "submitted news cleared before next independent question",
+          "second login with same name company and role cannot access first workspace"
+        ],
+        "page_errors": [],
+        "jobs": [
+          {
+            "run_id": "research_60f0be99e80546a19dbb",
+            "status": "PARTIAL",
+            "llm_calls": 3,
+            "tool_calls": 3,
+            "replans": 0
+          },
+          {
+            "run_id": "research_640099d5dbcf4533a820",
+            "status": "PARTIAL",
+            "llm_calls": 3,
+            "tool_calls": 3,
+            "replans": 0
+          }
+        ],
+        "document_summary": [
+          {
+            "id": "upload_170b91815c4d45f0aa51",
+            "status": "READY",
+            "feature_count": 3,
+            "llm_calls": 1,
+            "error_code": null
+          }
+        ],
+        "health": {
+          "status": "ok",
+          "version": "0.3.2",
+          "mode": "live",
+          "model": "qwen/qwen3.6-35b-a3b",
+          "research_model": "z-ai/glm-5.3-flash",
+          "key_configured": true,
+          "demo_only": true,
+          "company_data": "case_csv_and_company_documents",
+          "team_login": true,
+          "budget_rub_shared": 500,
+          "budget_reset": "03:00 МСК"
+        }
+      }
     }
   },
   "source_audit": {
@@ -55,14 +144,87 @@
       "source": "Prepared index; original CSV hashes checked by CaseData"
     }
   },
-  "jury_repository_permission": "none (read-only GitHub check)",
+  "jury_repository_permission": "none (GitHub rechecked 2026-10-24 MSK); no invitation sent",
   "docker_build": "not run: Docker CLI unavailable",
-  "render_update": "pending cloud verification",
+  "render_update": {
+    "url": "https://alfa-business-pulse.onrender.com",
+    "service_id": "srv-dbdphesipgvc739mcm80",
+    "deployment_id": "dep-dbdtrtbrjlhs738c5rl0",
+    "status": "live",
+    "finished_at": "2026-10-23T22:22:59.166932Z",
+    "plan": "free",
+    "region": "frankfurt",
+    "health": {
+      "status": "ok",
+      "version": "0.3.2",
+      "mode": "live",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "research_model": "z-ai/glm-5.3-flash",
+      "key_configured": true,
+      "demo_only": true,
+      "company_data": "case_csv_and_company_documents",
+      "team_login": true,
+      "budget_rub_shared": 500,
+      "budget_reset": "03:00 МСК"
+    },
+    "storage": "ephemeral_demo",
+    "auto_deploy": false,
+    "other_services_modified": false
+  },
   "limitations": [
     "Bank PDF corpus has page OCR and three structured rate claims, not complete human annotation",
     "Research uses a bounded catalogue of team-owned mechanisms; not a universal industry analyst or financial model",
     "No independent relevance/recall benchmark or user interviews",
-    "Free storage is ephemeral; bank SSO and production authorization absent"
+    "Free storage is ephemeral; bank SSO and production authorization absent",
+    "Live search returned irrelevant leads; these were not accepted as fact evidence; reliable live news discovery/ranking remains incomplete",
+    "Public CBR homepage read successfully; this does not verify the current rate or a specific fresh event",
+    "Company about page not read successfully; no content attributed to it",
+    "Miro embedded images not fully transcribed; textual objects and overview checked",
+    "A shared demo password is not bank SSO; login creates a personal workspace, role is analytical preference rather than permission"
   ],
-  "confidence_percent": 90
+  "confidence_percent": 90,
+  "running_code_commit": "9d3bd585b7a03db7d3b9db31e9d58a2a77fbb4dd",
+  "verified_live_runs": [
+    {
+      "scenario": "CFO funding liquidity interest result",
+      "run_id": "research_405e10719cf743cbad70",
+      "status": "PARTIAL",
+      "llm_calls": 4,
+      "tool_calls": 5,
+      "replans": 0
+    },
+    {
+      "scenario": "Followup retaining sources and snapshot",
+      "run_id": "research_60f0be99e80546a19dbb",
+      "status": "PARTIAL",
+      "llm_calls": 3,
+      "tool_calls": 3,
+      "replans": 0
+    },
+    {
+      "scenario": "Unseen synthetic IT supplier tariff news",
+      "run_id": "research_640099d5dbcf4533a820",
+      "status": "PARTIAL",
+      "llm_calls": 3,
+      "tool_calls": 3,
+      "replans": 0
+    }
+  ],
+  "document_extraction": [
+    {
+      "id": "upload_170b91815c4d45f0aa51",
+      "status": "READY",
+      "feature_count": 3,
+      "llm_calls": 1,
+      "error_code": null
+    }
+  ],
+  "local_desktop_health": "ok / 0.3.2 / team_login=true / worker alive after clean restart",
+  "artifact_integrity": {
+    "tracked_files_scanned": 105,
+    "secret_matches": [],
+    "prohibited_tracked_paths": [],
+    "source_hashes_checked": 4,
+    "broken_local_links": []
+  }
 }
