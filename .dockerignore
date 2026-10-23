@@ -8,3 +8,4 @@ reports
 **/__pycache__
 tests
 .git
+deploy/case-index

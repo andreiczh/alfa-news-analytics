@@ -4,6 +4,7 @@
 .DS_Store
 .render/
 render-access.txt
+deploy/case-index/
 .venv/
 __pycache__/
 *.pyc

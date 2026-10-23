@@ -6,6 +6,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 import shutil
+import sqlite3
 import zipfile
 
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ from pypdf import PdfWriter
 import pytest
 
 from alfa_agent.api import create_app
+from alfa_agent.case_data import CaseData
 from alfa_agent.document_parser import ParseError, parse_document
 from alfa_agent.engine import Engine
 from alfa_agent.ingestion import DocumentProcessor, ExtractedFact, validate_fact
@@ -91,6 +93,24 @@ def case_service(tmp_path, monkeypatch):
 
 def by_name(profile, name):
     return next(f for f in profile["features"] if f["name"] == name)
+
+
+def test_prebuilt_case_index_is_read_only_and_source_bound(case_service):
+    original = case_service.workspace.case
+    target = case_service.settings.root / "deploy/case-index/case.sqlite3"
+    target.parent.mkdir(parents=True)
+    with original.connect() as source, sqlite3.connect(target) as destination:
+        source.backup(destination)
+    packaged = CaseData(case_service.settings)
+    assert packaged.prebuilt
+    assert packaged.summary()["row_counts"] == original.summary()["row_counts"]
+    assert packaged.build("U_TEST_A")["profile"] == original.build("U_TEST_A")["profile"]
+    with packaged.connect() as db, pytest.raises(sqlite3.OperationalError, match="readonly"):
+        db.execute("CREATE TABLE should_not_exist(value TEXT)")
+    with (original.folder / "df_Uid_data_hack.csv").open("a") as file:
+        file.write("\n")
+    with pytest.raises(ValueError, match="packaged_case_index_source_mismatch"):
+        CaseData(case_service.settings)
 
 
 def test_import_preserves_ids_flags_missingness_and_source_rows(case_service):

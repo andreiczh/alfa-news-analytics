@@ -8,6 +8,7 @@ import json
 import os
 import sqlite3
 from collections import defaultdict
+from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -60,20 +61,34 @@ def decimal_value(raw):
 
 
 class CaseData:
-    def __init__(self, settings):
+    def __init__(self, settings, prefer_packaged=True):
         packaged = settings.root / "data/case"
         default_folder = packaged if packaged.is_dir() else settings.root.parent / "sources/data"
         self.folder = Path(os.environ.get("ALFA_CASE_DATA_DIR", default_folder))
-        self.path = settings.state_path / "case.sqlite3"
+        prepared = settings.root / "deploy/case-index/case.sqlite3"
+        self.prebuilt = prefer_packaged and prepared.is_file()
+        self.path = prepared if self.prebuilt else settings.state_path / "case.sqlite3"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.available = all((self.folder / n).is_file() for n in FILES)
         if self.available:
-            self._ensure_index()
+            if self.prebuilt:
+                with self.connect() as db:
+                    hashes = json.loads(db.execute("SELECT value FROM manifest WHERE key='hashes'").fetchone()[0])
+                if any(hashlib.sha256((self.folder / name).read_bytes()).hexdigest() != hashes.get(name) for name in FILES):
+                    raise ValueError("packaged_case_index_source_mismatch")
+            else:
+                self._ensure_index()
 
+    @contextmanager
     def connect(self):
-        db = sqlite3.connect(self.path, timeout=60)
+        target = self.path.as_uri() + "?mode=ro&immutable=1" if self.prebuilt else self.path
+        db = sqlite3.connect(target, timeout=60, uri=self.prebuilt)
         db.row_factory = sqlite3.Row
-        return db
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def _ensure_index(self):
         stamp = json.dumps(

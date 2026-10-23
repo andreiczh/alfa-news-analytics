@@ -63,6 +63,7 @@ def main():
     serve.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
     serve.add_argument("--host", default=None)
     commands.add_parser("worker")
+    commands.add_parser("build-case-index", help="Подготовить неизменяемый индекс CSV при сборке")
     run = commands.add_parser("run", help="Один живой прогон и HTML-результат")
     run.add_argument("--company", default="demo_floating")
     run.add_argument("--delta", default="-1")
@@ -71,7 +72,18 @@ def main():
     commands.add_parser("status", help="Только наличие конфигурации, без секрета")
     args = parser.parse_args()
     settings = Settings()
-    if args.command == "status":
+    if args.command == "build-case-index":
+        from .case_data import CaseData
+
+        folder = settings.root / "deploy/case-index"
+        indexed = CaseData(Settings(root=settings.root, state_dir=folder), prefer_packaged=False)
+        if not indexed.available:
+            raise SystemExit("Source CSVs are required to build the case index")
+        with indexed.connect() as db:
+            db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            db.execute("PRAGMA journal_mode=DELETE")
+        print(json.dumps({"case_index": "ready", "rows": indexed.summary()["row_counts"]}))
+    elif args.command == "status":
         print(
             json.dumps(
                 {

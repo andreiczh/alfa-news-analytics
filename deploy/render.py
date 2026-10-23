@@ -74,7 +74,7 @@ def main():
                         "runtime": "python", "plan": "free", "region": "frankfurt",
                         "numInstances": 1, "healthCheckPath": "/api/health",
                         "envSpecificDetails": {
-                            "buildCommand": "pip install --require-hashes -r requirements.lock",
+                            "buildCommand": "pip install --require-hashes -r requirements.lock && python -m alfa_agent build-case-index",
                             "startCommand": "python -m alfa_agent serve",
                         },
                     },
