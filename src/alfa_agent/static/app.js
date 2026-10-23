@@ -793,7 +793,13 @@ async function startResearch(question, extra = {}) {
     if (S.company.company_id !== company) return;
     S.job = job;
     S.view = "research";
-    S.draft.question = "";
+    S.draft = {
+      question: "",
+      news: "",
+      urls: "",
+      public: request.public_search,
+      jobTitle: request.job_title,
+    };
     await refreshHistory();
     render();
     window.scrollTo({ top: 0, behavior: "instant" });
