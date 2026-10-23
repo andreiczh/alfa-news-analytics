@@ -1055,6 +1055,16 @@ function renderResult(main, j) {
     ),
   );
   const bankViews = r.findings.filter((f) => f.kind === "bank_view");
+  if (!bankViews.length)
+    summary.append(
+      add(
+        node("div", "info-box bank-view"),
+        badge("Банковский взгляд", "red"),
+        p(
+          "По этому вопросу позиция банка пока не подтверждена доступными основаниями. В выводе показаны условные сценарии.",
+        ),
+      ),
+    );
   for (const f of bankViews) {
     const bank = node("div", "info-box bank-view");
     add(bank, badge("Банковский взгляд", "red"), p(f.text));
@@ -1705,7 +1715,8 @@ function renderFileList(container) {
     }
     info.append(controls);
     if (d.error_code) info.append(p(message(d.error_code), "fine-print"));
-    if (d.issues?.length) info.append(detail("Замечания к чтению файла", list(d.issues)));
+    if (d.issues?.length)
+      info.append(detail("Замечания к чтению файла", list(d.issues)));
     add(
       row,
       node(
