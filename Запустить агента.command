@@ -1,3 +1,3 @@
 #!/bin/zsh
 cd -- "${0:A:h}"
-exec ./.venv/bin/python -m alfa_agent serve
+exec ./.venv/bin/python -m alfa_agent.desktop

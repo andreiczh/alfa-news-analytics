@@ -230,7 +230,7 @@ def create_app(settings=None):
             return JSONResponse({"status": "worker_unavailable"}, status_code=503)
         return {
             "status": "ok",
-            "version": "0.3.1",
+            "version": "0.3.2",
             "mode": "live",
             "model": settings.model,
             "research_model": settings.research_model,

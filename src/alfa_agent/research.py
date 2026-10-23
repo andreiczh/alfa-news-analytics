@@ -157,9 +157,26 @@ def assemble_research(selection, ledger, request, snapshot):
             anchor_id=anchor["anchor_id"], source_id=anchor["source_id"], quote=anchor["quote"]
         )
 
+    grouped = {}
+    priority_order = ["check_now", "monitor", "background"]
     for choice in selection.findings:
-        if choice.mechanism in used:
-            raise ValueError("duplicate_mechanism")
+        if not all(aid in anchors for aid in choice.anchor_ids):
+            raise ValueError("unknown_citation_anchor")
+        if choice.mechanism in grouped:
+            previous = grouped[choice.mechanism]
+            combined = list(dict.fromkeys(previous.anchor_ids + choice.anchor_ids))
+            combined.sort(
+                key=lambda aid: bool(
+                    re.search(RULES[choice.mechanism]["keywords"], anchors[aid]["quote"], re.I)
+                ),
+                reverse=True,
+            )
+            previous.anchor_ids = combined[:2]
+            previous.priority = min((previous.priority, choice.priority), key=priority_order.index)
+        else:
+            grouped[choice.mechanism] = choice.model_copy(deep=True)
+    ordered_choices = sorted(grouped.values(), key=lambda choice: priority_order.index(choice.priority))
+    for choice in ordered_choices:
         used.add(choice.mechanism)
         if request["bank_company"] != choice.mechanism.startswith("bank_") and choice.mechanism in {
             "bank_alm",
@@ -204,6 +221,15 @@ def assemble_research(selection, ledger, request, snapshot):
         ),
         "",
     )
+    if not selected_bank and used & {"bank_alm", "corporate_funding"}:
+        selected_bank = next(
+            (
+                a["anchor_id"]
+                for a in ledger
+                if a["kind"] == "bank_claim" and a["source_id"] == "bank_assessment"
+            ),
+            "",
+        )
     if selected_bank:
         anchor = anchors.get(selected_bank)
         if not anchor or anchor["kind"] != "bank_claim":
@@ -255,7 +281,8 @@ def assemble_research(selection, ledger, request, snapshot):
         )
     roles = []
     all_ids = [f.finding_id for f in findings if f.kind == "analysis"]
-    for role, (focus, first, second) in (BANK_ROLES if request["bank_company"] else COMPANY_ROLES).items():
+    bank_finance = request["bank_company"] and ordered_choices[0].mechanism.startswith("bank_")
+    for role, (focus, first, second) in (BANK_ROLES if bank_finance else COMPANY_ROLES).items():
         roles.append(
             ResearchRole(
                 role=role,
@@ -311,8 +338,8 @@ def evidence_ledger(sources, question):
         sources,
         key=lambda s: (
             bool(s.get("provided_for_current_question")),
-            len(terms(s.get("text", "")) & wanted),
             s["kind"] == "bank_claim",
+            len(terms(s.get("text", "")) & wanted),
         ),
         reverse=True,
     )
