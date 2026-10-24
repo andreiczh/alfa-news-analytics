@@ -1,0 +1,393 @@
+{
+  "version": "0.4.0",
+  "checked_at": "2026-10-24T08:38:41.152396+00:00",
+  "running_code_commit": "bb64a93b841496ddc12ed754e88fdcde8e7c8aa3",
+  "tests": {
+    "pytest_passed": 134,
+    "ruff": "passed",
+    "javascript_syntax": "passed",
+    "locked_install": "uv sync --frozen --offline passed",
+    "local_browser": {
+      "target": "http://127.0.0.1:8767",
+      "checked_at": "2026-10-24T07:20:37.484Z",
+      "checks": [
+        "Alfa-Bank CFO login",
+        "automatic fresh collection with publisher dates and CFO relevance",
+        "multiple live sources and article text read",
+        "plain ranking reasons and score meaning visible",
+        "CCO and CFO have different ordering and reasons",
+        "period filter stays explicit",
+        "relevance feedback recorded",
+        "mobile 390 and 320 pixels without horizontal overflow",
+        "actual fresh event grounds verified CFO research",
+        "five roles retain common evidence",
+        "report with fresh source exported",
+        "rapid repeated refresh requests coalesced"
+      ],
+      "page_errors": [],
+      "candidate_count": 221,
+      "ranked_count": 20,
+      "read_count": 6,
+      "sources": [
+        {
+          "name": "Пресс-релизы Банка России",
+          "url": "https://www.cbr.ru/rss/RssPress",
+          "status": "ok",
+          "count": 14
+        },
+        {
+          "name": "Новости Банка России",
+          "url": "https://www.cbr.ru/rss/eventrss",
+          "status": "ok",
+          "count": 100
+        },
+        {
+          "name": "Новое на сайте Банка России",
+          "url": "https://www.cbr.ru/rss/RssNews",
+          "status": "ok",
+          "count": 100
+        },
+        {
+          "name": "РБК",
+          "url": "https://rssexport.rbc.ru/rbcnews/news/30/full.rss",
+          "status": "ok",
+          "count": 30
+        },
+        {
+          "name": "Новостной поиск Bing",
+          "url": "https://www.bing.com/news/search?format=rss&setlang=ru-RU&q=%22%D0%90%D0%BB%D1%8C%D1%84%D0%B0-%D0%91%D0%B0%D0%BD%D0%BA%22",
+          "status": "ok",
+          "count": 12
+        }
+      ],
+      "run_id": "research_98036842cf964d13bb5d",
+      "news_id": "news_42b35a14adfef2fecdd00601",
+      "status": "PARTIAL",
+      "llm_calls": 3,
+      "tool_calls": 2,
+      "replans": 0,
+      "company_id": "company_1463b35776d04da68597",
+      "scope": "pre-release local controlled live cache; final Render proof is separate"
+    },
+    "cloud_browser": {
+      "total_checks": 18,
+      "core": {
+        "target": "https://alfa-business-pulse.onrender.com",
+        "checked_at": "2026-10-24T08:23:44.992Z",
+        "checks": [
+          "Alfa-Bank CFO login",
+          "automatic fresh collection with publisher dates and CFO relevance",
+          "multiple live sources and article text read",
+          "plain ranking reasons and score meaning visible",
+          "CCO and CFO have different ordering and reasons",
+          "period filter stays explicit",
+          "relevance feedback recorded",
+          "mobile 390 and 320 pixels without horizontal overflow",
+          "actual fresh event grounds verified CFO research",
+          "news excerpt keeps a complete statement without cut units",
+          "five roles retain common evidence",
+          "report with fresh source exported",
+          "rapid repeated refresh requests coalesced"
+        ],
+        "page_errors": [],
+        "candidate_count": 216,
+        "ranked_count": 20,
+        "read_count": 6,
+        "sources": [
+          {
+            "name": "Пресс-релизы Банка России",
+            "url": "https://www.cbr.ru/rss/RssPress",
+            "status": "ok",
+            "count": 14
+          },
+          {
+            "name": "Новости Банка России",
+            "url": "https://www.cbr.ru/rss/eventrss",
+            "status": "ok",
+            "count": 100
+          },
+          {
+            "name": "Новое на сайте Банка России",
+            "url": "https://www.cbr.ru/rss/RssNews",
+            "status": "ok",
+            "count": 100
+          },
+          {
+            "name": "РБК",
+            "status": "unavailable",
+            "error": "public_page_unavailable",
+            "count": 0
+          },
+          {
+            "name": "Новостной поиск Bing",
+            "url": "https://www.bing.com/news/search?format=rss&setlang=ru-RU&q=%22%D0%90%D0%BB%D1%8C%D1%84%D0%B0-%D0%91%D0%B0%D0%BD%D0%BA%22",
+            "status": "ok",
+            "count": 12
+          },
+          {
+            "name": "Интерфакс — резервная лента",
+            "url": "https://www.interfax.ru/rss.asp",
+            "status": "ok",
+            "count": 25
+          }
+        ],
+        "run_id": "research_cd338c63563746dc8643",
+        "news_id": "news_42b35a14adfef2fecdd00601",
+        "status": "PARTIAL",
+        "llm_calls": 3,
+        "tool_calls": 2,
+        "replans": 0,
+        "company_id": "company_a4b861a994744df6b259"
+      },
+      "extensions": {
+        "target": "https://alfa-business-pulse.onrender.com",
+        "checked_at": "2026-10-24T08:26:37.970Z",
+        "checks": [
+          "custom question autonomously discovers fresh news without a pasted URL",
+          "generic CFO interpretation uses an actual fresh article",
+          "corporate effects remain conditional without internal balance figures",
+          "second same-name CFO login cannot read or refresh first news workspace",
+          "published version and worker healthy"
+        ],
+        "page_errors": [],
+        "run_id": "research_503041d391db467c81bb",
+        "status": "PARTIAL",
+        "llm_calls": 6,
+        "tool_calls": 6,
+        "replans": 1,
+        "health": {
+          "status": "ok",
+          "version": "0.4.0",
+          "mode": "live",
+          "model": "qwen/qwen3.6-35b-a3b",
+          "research_model": "z-ai/glm-5.3-flash",
+          "key_configured": true,
+          "demo_only": true,
+          "company_data": "case_csv_and_company_documents",
+          "team_login": true,
+          "budget_rub_shared": 500,
+          "budget_reset": "03:00 МСК"
+        }
+      },
+      "code_commit": "98f1ff94dfe9ffc2ec33afe59dacc619fbf3f45c"
+    },
+    "cloud_navigation_review": {
+      "checked_at": "2026-10-24T08:36:33.959Z",
+      "target": "https://alfa-business-pulse.onrender.com",
+      "code_commit": "bb64a93b841496ddc12ed754e88fdcde8e7c8aa3",
+      "checks": [
+        "return to overview resumes freshness request",
+        "refresh preserves typed research draft",
+        "news navigation makes zero research model runs",
+        "updated home remains usable at 320 pixels"
+      ],
+      "page_errors": [],
+      "research_posts": 0
+    },
+    "cloud_checks_total": 22
+  },
+  "render": {
+    "url": "https://alfa-business-pulse.onrender.com",
+    "service_id": "srv-dbdphesipgvc739mcm80",
+    "deployment_id": "dep-dbe6qu7avr4c739s4ieg",
+    "status": "live",
+    "finished_at": "2026-10-24T08:35:47.193967Z",
+    "cloud_acceptance": "18 workflow checks on backend commit 98f1ff9; 4 focused navigation checks on current bb64a93; backend/data/prompts/dependencies identical",
+    "health": {
+      "status": "ok",
+      "version": "0.4.0",
+      "mode": "live",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "research_model": "z-ai/glm-5.3-flash",
+      "key_configured": true,
+      "demo_only": true,
+      "company_data": "case_csv_and_company_documents",
+      "team_login": true,
+      "budget_rub_shared": 500,
+      "budget_reset": "03:00 МСК"
+    },
+    "auto_deploy": false
+  },
+  "boundaries": {
+    "runtime_prepared_news_fixtures": false,
+    "external_ai_search_added": false,
+    "ranking_llm_calls": 0,
+    "independent_relevance_benchmark": false,
+    "local_transport": "controlled live transport/cache; not runtime pinning proof",
+    "render_transport": "normal pinned HTTPS from a fresh Render instance; no injected feeds or transport override"
+  },
+  "limitations": [
+    "Bounded public sources and rules, not complete media coverage or a trained personalization model",
+    "Publisher dates and claims can be wrong; read does not mean independently verified",
+    "Missing internal bank data prevents a numeric corporate balance-sheet effect",
+    "Free storage remains ephemeral; Docker not run locally",
+    "Old 0.3.2 full case audit remains partial; the 0.4 feature does not complete all criteria",
+    "RBC RSS remained unavailable from Render; the Interfax fallback worked and coverage is visible",
+    "Generic research can still be broad/conditional because it uses a bounded mechanism catalogue; semantic warnings are recorded",
+    "The default bank profile contains only user-supplied employer/role, not a verified internal balance sheet"
+  ],
+  "confidence_percent": 90,
+  "verified_live_runs": [
+    {
+      "scenario": "Selected fresh news to CFO",
+      "run_id": "research_cd338c63563746dc8643",
+      "status": "PARTIAL",
+      "llm_calls": 3,
+      "tool_calls": 2,
+      "replans": 0
+    },
+    {
+      "scenario": "Independent fresh question without URL",
+      "run_id": "research_503041d391db467c81bb",
+      "status": "PARTIAL",
+      "llm_calls": 6,
+      "tool_calls": 6,
+      "replans": 1
+    }
+  ],
+  "live_source_coverage": {
+    "candidates": 216,
+    "ranked": 20,
+    "ranked_articles_read": 6,
+    "healthy_channels": 5,
+    "channels_attempted": 6,
+    "sources": [
+      {
+        "name": "Пресс-релизы Банка России",
+        "url": "https://www.cbr.ru/rss/RssPress",
+        "status": "ok",
+        "count": 14
+      },
+      {
+        "name": "Новости Банка России",
+        "url": "https://www.cbr.ru/rss/eventrss",
+        "status": "ok",
+        "count": 100
+      },
+      {
+        "name": "Новое на сайте Банка России",
+        "url": "https://www.cbr.ru/rss/RssNews",
+        "status": "ok",
+        "count": 100
+      },
+      {
+        "name": "РБК",
+        "status": "unavailable",
+        "error": "public_page_unavailable",
+        "count": 0
+      },
+      {
+        "name": "Новостной поиск Bing",
+        "url": "https://www.bing.com/news/search?format=rss&setlang=ru-RU&q=%22%D0%90%D0%BB%D1%8C%D1%84%D0%B0-%D0%91%D0%B0%D0%BD%D0%BA%22",
+        "status": "ok",
+        "count": 12
+      },
+      {
+        "name": "Интерфакс — резервная лента",
+        "url": "https://www.interfax.ru/rss.asp",
+        "status": "ok",
+        "count": 25
+      }
+    ],
+    "top_cfo": [
+      {
+        "title": "Банк России принял решение сохранить ключевую ставку на уровне 14,00% годовых (23.10.2026)",
+        "url": "https://www.cbr.ru/press/PR/?file=23102026_133000key.htm",
+        "published_at": "2026-10-23T10:30:00+00:00",
+        "score": 86,
+        "focus": "Ставки и процентный результат",
+        "priority": "check_now",
+        "read_status": "article_read",
+        "reasons": [
+          "Событие банковского сектора; компания указана как банк",
+          "Для CFO: ставки и процентный результат"
+        ]
+      },
+      {
+        "title": "Результаты мониторинга максимальных процентных ставок кредитных организаций (21.10.2026)",
+        "url": "https://www.cbr.ru/press/PR/?file=639281806781687368BANK_SECTOR.htm",
+        "published_at": "2026-10-21T11:32:53+00:00",
+        "score": 77,
+        "focus": "Ставки и процентный результат",
+        "priority": "check_now",
+        "read_status": "article_read",
+        "reasons": [
+          "Событие банковского сектора; компания указана как банк",
+          "Для CFO: ставки и процентный результат"
+        ]
+      },
+      {
+        "title": "Установлены факты неправомерного использования инсайдерской информации при совершении сделок с рядом акций на торгах ПАО Московская Биржа (21.10.2026)",
+        "url": "https://www.cbr.ru/press/PR/?file=639281939787093652PNP.htm",
+        "published_at": "2026-10-21T13:00:00+00:00",
+        "score": 75,
+        "focus": "Капитал и регулирование",
+        "priority": "check_now",
+        "read_status": "article_read",
+        "reasons": [
+          "Событие банковского сектора; компания указана как банк",
+          "Для CFO: капитал и регулирование"
+        ]
+      },
+      {
+        "title": "Вмененная ставка валютного свопа овернайт в юанях",
+        "url": "https://www.cbr.ru/hd_base/impliedratecny/",
+        "published_at": "2026-10-23T14:02:17+00:00",
+        "score": 71,
+        "focus": "Фондирование и ликвидность",
+        "priority": "check_now",
+        "read_status": "article_read",
+        "reasons": [
+          "Событие банковского сектора; компания указана как банк",
+          "Для CFO: фондирование и ликвидность"
+        ]
+      },
+      {
+        "title": "Альфа-Банк выдал онлайн экспресс-гарантий на сумму более 329 млрд рублей",
+        "url": "https://www.vedomosti.ru/press_releases/2026/10/22/alfa-bank-vidal-onlain-ekspress-garantii-na-summu-bolee-329-mlrd-rublei",
+        "published_at": "2026-10-21T17:00:00+00:00",
+        "score": 71,
+        "focus": "Кредитный риск",
+        "priority": "check_now",
+        "read_status": "article_read",
+        "reasons": [
+          "Компания названа в заголовке",
+          "Для CFO: кредитный риск"
+        ]
+      }
+    ]
+  },
+  "iterative_findings": [
+    "Replaced general Bing web results with News and direct dated RSS",
+    "Fixed false Capital entity match, educational cyber event, tax substring, topic from unrelated body text",
+    "Kept issuer commentary distinct from own-company event; unconfirmed counterparty exposure is conditional",
+    "Added fallback after RBC was unavailable on Render",
+    "Added article-title/content match to subsequent agent reads; mismatched homepages cannot ground an event",
+    "Fixed failed-refresh recovery; preserved publisher local date and aggregator provenance",
+    "Kept opposite numeric updates separate; announcements rank below outcomes",
+    "Replaced clipped table fragment with a complete header or relevant complete sentence",
+    "Corrected an old flaky test that matched 777 in random timestamps instead of rejected anchor a777",
+    "One QA run was started before deployment Live and lost during Free restart; exact final run was repeated after Live"
+  ],
+  "verification_scope": "Schema, ownership, source/quote/number checks and a separate allowed-model consistency call; no independent financial truth certification",
+  "observed_semantic_warnings": [
+    "f1 цитирует пресс-релиз ЦБ от 23.10.2026 только в части даты следующего заседания; сам факт решения ЦБ сохранить ключевую ставку 14,00% 23.10.2026 не отражён в findings, хотя источник прочитан и напрямую релевантен вопросу о фондировании",
+    "f5: прогноз банка о паузе на заседании 23.10.2026 фактически подтверждён решением ЦБ от той же даты (news_42b35a14adfef2fecdd00601); формулировка «актуальность позиции не подтверждена» избыточно осторожна — можно сопоставить прогноз с состоявшимся решением, сохранив различие между собственной позицией банка и фактом ЦБ",
+    "Ни один finding явно не использует данные мониторинга максимальных ставок (news_da2c281bc4f4dd4a941bd33c) в аналитическом выводе: Альфа-Банк входит в десятку банков мониторинга (сноска 2), но f2 ограничивается средними ставками по срокам — можно явно отметить включение банка в мониторинг как релевантный факт для депозитного фондирования"
+  ],
+  "artifact_integrity": {
+    "files_scanned": 112,
+    "secret_hits": [],
+    "prohibited_tracked_paths": [],
+    "broken_local_links": []
+  },
+  "backend_tested_commit": "98f1ff94dfe9ffc2ec33afe59dacc619fbf3f45c",
+  "source_equivalence": {
+    "changed_runtime_files_since_full_cloud_test": [
+      "src/alfa_agent/static/app.js"
+    ],
+    "python_data_models_prompts_dependencies_unchanged": true,
+    "change": "Call existing loadNews when returning to overview",
+    "verification": "git diff between the two recorded commits"
+  }
+}
