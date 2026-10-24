@@ -9,7 +9,7 @@ import logging
 import time
 from datetime import datetime
 
-from .news_sources import article_matches, article_publication, discovery_sources, parse_feed
+from .news_sources import FALLBACK_FEED, article_matches, article_publication, discovery_sources, parse_feed
 from .news_ranking import company_context, rank_news
 from .public_sources import PublicSourceError, page_source, read_public
 from .identity import role_for
@@ -94,13 +94,17 @@ class NewsService:
             ).fetchone()
             if old:
                 age = (now - datetime.fromisoformat(old["created_at"])).total_seconds()
+                if old["status"] == "FAILED":
+                    age = (
+                        now - datetime.fromisoformat(old["finished_at"] or old["created_at"])
+                    ).total_seconds()
                 previous_context = json.loads(old["context_json"])
                 same_profile = all(
                     context.get(k) == previous_context.get(k)
                     for k in ("name", "industry", "exposure_topics", "website")
                 )
                 if old["status"] in {"QUEUED", "RUNNING"} or (
-                    same_profile and age < (60 if force else REFRESH_SECONDS)
+                    same_profile and age < (60 if force or old["status"] == "FAILED" else REFRESH_SECONDS)
                 ):
                     return old["id"]
             if (
@@ -144,6 +148,11 @@ class NewsService:
             context.get(k) != previous_context.get(k)
             for k in ("name", "industry", "exposure_topics", "website")
         )
+        failed_age = (
+            (utcnow() - datetime.fromisoformat(row["finished_at"] or row["created_at"])).total_seconds()
+            if row and row["status"] == "FAILED"
+            else None
+        )
         return {
             "status": row["status"] if row else "EMPTY",
             "job_id": row["id"] if row else None,
@@ -153,7 +162,10 @@ class NewsService:
             "items": public,
             "checked_at": checked,
             "as_of": utcnow().isoformat(),
-            "refresh_due": age is None or age > REFRESH_SECONDS or profile_changed,
+            "refresh_due": failed_age >= 60
+            if failed_age is not None
+            else age is None or age > REFRESH_SECONDS or profile_changed,
+            "retry_after_seconds": max(0, int(60 - failed_age)) if failed_age is not None else 0,
             "stale": bool(age and age > REFRESH_SECONDS),
             "error_code": row.get("error_code") if row else None,
             "sources": result.get("sources", []),
@@ -162,7 +174,7 @@ class NewsService:
             "read_count": sum(i["read_status"] == "article_read" for i in public),
             "ranking_version": "news-rules-v1",
             "ranking_note": "Баллы — прозрачный приоритет проверки, не вероятность и не размер финансового эффекта.",
-            "scope": "Открытые ленты ЦБ и РБК + поиск по публичному названию. Внутренние показатели и ФИ не передаются в поиск.",
+            "scope": "Ленты ЦБ/РБК и резервный Интерфакс + поиск по публичному названию. Внутренние показатели и ФИ не передаются в поиск.",
             "profile_note": "Приоритет пересчитан по текущему профилю; доступные источники могли быть собраны по его предыдущей версии.",
         }
 
@@ -240,6 +252,8 @@ class NewsService:
         output = await asyncio.gather(
             *(feed(*s) for s in discovery_sources(context["name"], role, context["anonymous"]))
         )
+        if any(status["status"] != "ok" for _, status in output):
+            output.append(await feed(*FALLBACK_FEED))
         by_url, health = {}, []
         for entries, status in output:
             health.append(status)

@@ -21,7 +21,7 @@ from alfa_agent.news_sources import (
     article_matches,
     article_publication,
 )
-from alfa_agent.research import ResearchRequest, assemble_research, ResearchSelection
+from alfa_agent.research import ResearchRequest, ResearchEngine, assemble_research, ResearchSelection
 from alfa_agent.settings import Settings, utcnow
 from alfa_agent.storage import NotFound
 
@@ -461,3 +461,110 @@ def test_generic_fresh_research_cannot_ignore_available_current_news():
         f.kind == "source_fact"
         for f in assemble_research(selection, ledger, request, {"profile": {"features": []}}).findings
     )
+
+
+def test_secondary_feed_failure_uses_bounded_public_fallback(service):
+    from alfa_agent.public_sources import PublicSourceError
+
+    calls = []
+    title = "Банк России сохранил ключевую ставку"
+    date = utcnow().strftime("%a, %d %b %Y %H:%M:%S +0000")
+    xml = f"<rss><channel><item><title>{title}</title><link>https://cbr.ru/policy</link><pubDate>{date}</pubDate></item></channel></rss>"
+
+    def read(url):
+        calls.append(url)
+        if "rbc.ru" in url:
+            raise PublicSourceError("public_page_unavailable")
+        return {"text": xml, "url": url}
+
+    article = {
+        "title": title,
+        "text": title + ". " + "В источнике есть условия денежно-кредитной политики. " * 8,
+        "url": "https://cbr.ru/policy",
+        "publisher": "cbr.ru",
+        "published_at": utcnow().date().isoformat(),
+    }
+    with (
+        patch("alfa_agent.news.read_public", side_effect=read),
+        patch("alfa_agent.news.page_source", return_value=article),
+    ):
+        result = asyncio.run(service.news.collect({**CONTEXT, "anonymous": True}, "cfo"))
+    assert len(calls) == 5 and calls[-1] == "https://www.interfax.ru/rss.asp"
+    assert result["sources"][-1]["status"] == "ok"
+    assert any(s["status"] == "unavailable" for s in result["sources"])
+
+
+def test_reading_selected_news_does_not_accept_an_unrelated_homepage(service):
+    cid = service.workspace.create_company("Альфа-Банк")["company_id"]
+    value = item("Альфа-Банк опубликовал финансовые результаты", url="https://example.com/news", read=False)
+    persist_pool(service, cid, [value])
+    job = service.research.create(
+        ResearchRequest(
+            company_id=cid, question="Что проверить CFO по этой новости?", news_item_id=value["news_id"]
+        ),
+        "mismatched-article",
+    )
+
+    class Gateway:
+        async def complete(self, run_id, stage, payload, schema, repair=None):
+            if stage == "research_plan":
+                return json.dumps(
+                    {
+                        "rationale": "Prepare a conditional result",
+                        "actions": [{"tool": "write", "reason": "Use available material"}],
+                    }
+                )
+            if stage == "research_write":
+                anchor = next(a for a in payload["evidence_ledger"] if a["kind"] == "bank_claim")
+                return json.dumps(
+                    {
+                        "findings": [
+                            {
+                                "mechanism": "bank_alm",
+                                "anchor_ids": [anchor["anchor_id"]],
+                                "priority": "check_now",
+                            }
+                        ]
+                    }
+                )
+            return json.dumps(
+                {
+                    "approved": True,
+                    "issues": [],
+                    "scope_note": "Synthetic verifier for an evidence rejection test",
+                }
+            )
+
+    unrelated = {
+        "title": "Главная страница",
+        "publisher": "example.com",
+        "url": "https://example.com/",
+        "kind": "public_page",
+        "text": "Общая навигация по сайту. " * 30,
+        "published_at": None,
+    }
+    with patch("alfa_agent.research.page_source", return_value=unrelated):
+        asyncio.run(ResearchEngine(service.research, Gateway()).once())
+    result = service.research.get(job["run_id"])
+    assert result["result"] is None
+    assert any(
+        t["event"] == "tool_completed" and t["data"]["error"] == "article_content_mismatch"
+        for t in result["trace"]
+    )
+    assert not any(
+        s["source_id"] == value["news_id"] and s["kind"] == "public_page" for s in result["sources"]
+    )
+
+
+def test_failed_auto_refresh_becomes_retryable_after_cooldown(service):
+    cid = service.workspace.create_company("Альфа-Банк")["company_id"]
+    persist_pool(service, cid, [], status="FAILED")
+    assert not service.news.get(cid)["refresh_due"]
+    old = service.news._latest("demo", cid)["id"]
+    with service.store.connection() as db:
+        db.execute(
+            "UPDATE news_jobs SET finished_at=? WHERE id=?",
+            ((utcnow() - timedelta(seconds=61)).isoformat(), old),
+        )
+    assert service.news.get(cid)["refresh_due"]
+    assert service.news.refresh(cid, force=False)["job_id"] != old

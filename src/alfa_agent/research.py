@@ -19,7 +19,7 @@ from .gateway import GatewayError
 from .public_sources import PublicSourceError, TOPICS, page_source
 from .identity import role_for
 from .news import news_source
-from .news_sources import article_publication
+from .news_sources import article_matches, article_publication
 from .settings import utcnow
 from .storage import Conflict, NotFound, new_id
 from .research_rules import RULES, BANK_ROLES, COMPANY_ROLES
@@ -1069,6 +1069,8 @@ class ResearchEngine:
                         item = await asyncio.to_thread(page_source, source["url"])
                         item["source_id"] = source["source_id"]
                         if source.get("news_item"):
+                            if not article_matches(source, item):
+                                raise PublicSourceError("article_content_mismatch")
                             metadata = article_publication(source, item)
                             item["published_at"] = source.get("published_at")
                             item["publication_date_raw"] = source.get("publication_date_raw")
@@ -1079,6 +1081,7 @@ class ResearchEngine:
                             "provided_for_current_question", False
                         )
                         item["text"] = item["text"][:10000]
+                        item["sha256"] = hashlib.sha256(item["text"].encode()).hexdigest()
                         add_sources([item])
                         count = 1
             except PublicSourceError as failure:

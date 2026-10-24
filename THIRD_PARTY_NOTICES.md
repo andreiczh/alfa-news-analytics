@@ -3,7 +3,7 @@
 ## Version 0.4 additions
 
 - Bank of Russia public RSS: `https://www.cbr.ru/rss/RssPress`, `/rss/eventrss`, `/rss/RssNews`; official channel register: `https://cbr.ru/development/RSS/`.
-- RBC public RSS: `https://rssexport.rbc.ru/rbcnews/news/30/full.rss`; Bing News RSS: `https://www.bing.com/news/search?format=rss`. These are bounded non-AI discovery sources, with no asserted SLA or completeness. Publisher copyright and attribution remain with the publishers. The service stores source URLs/dates and bounded text for analysis; a headline is not treated as a read article.
+- RBC public RSS: `https://rssexport.rbc.ru/rbcnews/news/30/full.rss`; Bing News RSS: `https://www.bing.com/news/search?format=rss`. Fallback public feed: `https://www.interfax.ru/rss.asp`. These are bounded non-AI discovery sources, with no asserted SLA or completeness. Publisher copyright and attribution remain with the publishers. The service stores source URLs/dates and bounded text for analysis; a headline is not treated as a read article.
 - Collection, freshness checks, entity/role ranking, duplicate handling, cache, scheduling and permission checks are team-owned Python. No external AI search/reranking service, embedding API or ready-made agent runtime was added. Collection/ranking makes no LLM calls.
 - Prettier 3.6.2 used only to format development files; it is not a production dependency. No dependency or source licence change implied by the feature.
 

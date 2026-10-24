@@ -156,13 +156,13 @@ def test_approved_partial_research_retains_nonblocking_warning_without_replan(se
 
 
 @pytest.mark.parametrize("kw", [{"bad_number": True}, {"reject_once": True}])
-def test_replans_after_numeric_or_semantic_failure_and_publishes_only_verified(service, kw):
+def test_replans_after_invalid_anchor_or_semantic_failure_and_publishes_only_verified(service, kw):
     job = service.research.create(request_for(service), "replan")
     gateway = ResearchGateway(**kw)
     asyncio.run(ResearchEngine(service.research, gateway).once())
     result = service.research.get(job["run_id"])
     assert result["status"] == "PARTIAL" and result["replans"] == 1
-    assert "777" not in json.dumps(result["result"])
+    assert all(c["anchor_id"] != "a777" for f in result["result"]["findings"] for c in f["citations"])
     assert any(t["event"] == "replan" for t in result["trace"])
     assert sum(t["event"] == "published" for t in result["trace"]) == 1
 

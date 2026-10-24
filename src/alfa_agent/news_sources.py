@@ -19,6 +19,7 @@ FEEDS = (
     ("cbr_updates", "Новое на сайте Банка России", "https://www.cbr.ru/rss/RssNews"),
     ("rbc", "РБК", "https://rssexport.rbc.ru/rbcnews/news/30/full.rss"),
 )
+FALLBACK_FEED = ("interfax", "Интерфакс — резервная лента", "https://www.interfax.ru/rss.asp")
 
 
 def plain(text, limit=1200):

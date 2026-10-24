@@ -1053,7 +1053,7 @@ async function loadNews(auto = true) {
     if (
       auto &&
       result.refresh_due &&
-      !["QUEUED", "RUNNING", "FAILED"].includes(result.status)
+      !["QUEUED", "RUNNING"].includes(result.status)
     )
       return refreshNews(false);
     if (["QUEUED", "RUNNING"].includes(result.status))
