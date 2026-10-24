@@ -387,6 +387,7 @@ function go(view) {
   $("#sidebar").classList.remove("open");
   $("#mobile-menu").setAttribute("aria-expanded", "false");
   render();
+  if (view === "home") loadNews(true);
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 function render() {
