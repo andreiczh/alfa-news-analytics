@@ -294,6 +294,14 @@ def score_item(item, context, role, now, window_days=7):
         re.search(r"(?:решени\w*|сохран\w*|повыс\w*|сниз\w*).{0,35}ключев\w* ставк", title, re.I)
     )
     components["event"] = 6 if policy_decision else -9 if item.get("feed_id") == "cbr_updates" else 0
+    announcement = bool(re.search(r"\bсостоится\b|\bпройд[её]т\b|\bприглаша\w*|\bанонс\w*", title, re.I))
+    components["announcement_penalty"] = -16 if announcement else 0
+    if announcement:
+        reasons.append("Это анонс, а не сообщение об итогах события; проверьте дату мероприятия")
+    other_issuer_risk = not direct and bool(re.search(r"отозван\w* лицензи|дефолт|банкрот", title, re.I))
+    components["unconfirmed_counterparty_penalty"] = -12 if other_issuer_risk else 0
+    if other_issuer_risk:
+        reasons.append("Событие другого участника рынка: экспозиция вашей компании на него не подтверждена")
     matched = sorted(set(topics) & set(context["exposure_topics"]))
     components["profile"] = 8 if matched else 0
     if matched:

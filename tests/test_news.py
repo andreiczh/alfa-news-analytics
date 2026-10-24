@@ -568,3 +568,27 @@ def test_failed_auto_refresh_becomes_retryable_after_cooldown(service):
         )
     assert service.news.get(cid)["refresh_due"]
     assert service.news.refresh(cid, force=False)["job_id"] != old
+
+
+def test_press_conference_announcement_is_below_published_policy_result():
+    result = item("Банк России принял решение сохранить ключевую ставку", url="https://cbr.ru/decision")
+    preview = item(
+        "23 октября состоится пресс-конференция по денежно-кредитной политике",
+        url="https://cbr.ru/announcement",
+        ago=0.1,
+    )
+    ranked, _ = rank_news([preview, result], CONTEXT, "cfo", NOW)
+    assert ranked[0]["news_id"] == result["news_id"]
+    announcement = next(i for i in ranked if i["news_id"] == preview["news_id"])
+    assert announcement["priority"] != "check_now"
+    assert any("Это анонс" in reason for reason in announcement["reasons"])
+
+
+def test_other_bank_license_loss_does_not_imply_alfa_counterparty_exposure():
+    other = item("Отозвана лицензия у НКО Другой Банк", url="https://cbr.ru/other")
+    own = item("Отозвана лицензия у Альфа-Банка", url="https://cbr.ru/own")
+    unrelated, _ = score_item(other, CONTEXT, "cfo", NOW)
+    direct, _ = score_item(own, CONTEXT, "cfo", NOW)
+    assert unrelated["score"] < direct["score"]
+    assert unrelated["priority"] != "check_now"
+    assert any("экспозиция" in r for r in unrelated["reasons"])
