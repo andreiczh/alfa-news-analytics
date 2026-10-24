@@ -890,7 +890,10 @@ function renderNews(container) {
           " · " +
           (item.read_status === "article_read"
             ? "Текст прочитан"
-            : "Только заголовок — требуется чтение"),
+            : "Только заголовок — требуется чтение") +
+          (item.date_source === "search_feed"
+            ? " · Дата из поисковой ленты"
+            : ""),
         "caption",
       ),
       p(item.focus, "news-focus"),

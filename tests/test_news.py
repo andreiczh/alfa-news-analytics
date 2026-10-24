@@ -21,7 +21,14 @@ from alfa_agent.news_sources import (
     article_matches,
     article_publication,
 )
-from alfa_agent.research import ResearchRequest, ResearchEngine, assemble_research, ResearchSelection
+from alfa_agent.research import (
+    ResearchRequest,
+    ResearchEngine,
+    assemble_research,
+    ResearchSelection,
+    complete_news_excerpt,
+    news_headline_quote,
+)
 from alfa_agent.settings import Settings, utcnow
 from alfa_agent.storage import NotFound
 
@@ -592,3 +599,26 @@ def test_other_bank_license_loss_does_not_imply_alfa_counterparty_exposure():
     assert unrelated["score"] < direct["score"]
     assert unrelated["priority"] != "check_now"
     assert any("экспозиция" in r for r in unrelated["reasons"])
+
+
+def test_news_excerpt_never_clips_a_rate_table_or_condition():
+    anchor = {
+        "quote": "является индикативным. 3 Средние максимальные ставки: до 90 дней — 12,55%; от 91 до 180 дней —"
+    }
+    assert complete_news_excerpt(anchor) is None
+    source = {
+        "title": "Результаты мониторинга максимальных процентных ставок (21.10.2026)",
+        "text": "Результаты мониторинга\nмаксимальных процентных ставок\n21 октября 2026 года.\nЗатем таблица.",
+    }
+    header = news_headline_quote(source)
+    assert header == "Результаты мониторинга\nмаксимальных процентных ставок"
+    assert complete_news_excerpt({**anchor, "headline_quote": header}) == header
+    assert (
+        complete_news_excerpt({"quote": "Полное предложение со всеми условиями."})
+        == "Полное предложение со всеми условиями."
+    )
+    policy = {
+        "title": "Банк России принял решение сохранить ключевую ставку",
+        "text": "Время публикации пресс-релиза — 13:30 по московскому времени.\nСовет директоров Банка России сохранил ключевую ставку на уровне 14,00% годовых.",
+    }
+    assert news_headline_quote(policy).startswith("Совет директоров")

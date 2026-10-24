@@ -242,9 +242,8 @@ def assemble_research(selection, ledger, request, snapshot):
         )
     ):
         raise ValueError("fresh_news_must_ground_interpretation")
-    if event_anchor:
-        words = list(re.finditer(r"\S+", event_anchor["quote"]))
-        short_quote = event_anchor["quote"][: words[min(23, len(words) - 1)].end()]
+    short_quote = complete_news_excerpt(event_anchor) if event_anchor else None
+    if short_quote:
         findings.append(
             Finding(
                 finding_id="f" + str(len(findings) + 1),
@@ -379,6 +378,35 @@ def numbers(value):
     return {str(Decimal(x.replace(",", ".").replace("−", "-")).normalize()) for x in tokens}
 
 
+def complete_news_excerpt(anchor):
+    if anchor.get("headline_quote"):
+        return anchor["headline_quote"]
+    # Never cut a table cell, a unit or a condition at an arbitrary word count.
+    for sentence in re.split(r"(?<=[.!?])\s+", anchor["quote"]):
+        sentence = sentence.strip()
+        if sentence and sentence[0].isupper() and sentence[-1] in ".!?" and len(sentence.split()) <= 24:
+            return sentence
+    return None
+
+
+def news_headline_quote(source):
+    title = re.sub(r"\s*\(\d{2}\.\d{2}\.\d{4}\)\s*$", "", source.get("title") or "").strip()
+    if not title or len(title.split()) > 24:
+        return None
+    match = re.search(r"\s+".join(re.escape(word) for word in title.split()), source.get("text", ""), re.I)
+    if match:
+        return match.group(0)
+    wanted = terms(title)
+    sentences = []
+    for sentence in re.split(r"(?<=[.!?])\s+|[\r\n]+", source.get("text", "")[:4000]):
+        sentence = sentence.strip()
+        if sentence and sentence[0].isupper() and sentence[-1] in ".!?" and len(sentence.split()) <= 24:
+            score = len(terms(sentence) & wanted)
+            if score:
+                sentences.append((score, sentence))
+    return max(sentences, key=lambda item: item[0])[1] if sentences else None
+
+
 def evidence_ledger(sources, question):
     """The host owns quotations. The model selects small opaque anchors, not new quotes."""
     ledger, wanted = [], terms(question)
@@ -424,6 +452,7 @@ def evidence_ledger(sources, question):
                     "claim_type": source.get("claim_type"),
                     "publisher": source.get("publisher"),
                     "news_item": source.get("news_item", False),
+                    "headline_quote": news_headline_quote(source) if source.get("news_item") else None,
                     "provided_for_current_question": source.get("provided_for_current_question", False),
                     "bank_owner_explicit": source["kind"] == "bank_claim"
                     or (
