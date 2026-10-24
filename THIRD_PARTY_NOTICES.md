@@ -1,5 +1,12 @@
 # Third-party notices
 
+## Version 0.4 additions
+
+- Bank of Russia public RSS: `https://www.cbr.ru/rss/RssPress`, `/rss/eventrss`, `/rss/RssNews`; official channel register: `https://cbr.ru/development/RSS/`.
+- RBC public RSS: `https://rssexport.rbc.ru/rbcnews/news/30/full.rss`; Bing News RSS: `https://www.bing.com/news/search?format=rss`. These are bounded non-AI discovery sources, with no asserted SLA or completeness. Publisher copyright and attribution remain with the publishers. The service stores source URLs/dates and bounded text for analysis; a headline is not treated as a read article.
+- Collection, freshness checks, entity/role ranking, duplicate handling, cache, scheduling and permission checks are team-owned Python. No external AI search/reranking service, embedding API or ready-made agent runtime was added. Collection/ranking makes no LLM calls.
+- Prettier 3.6.2 used only to format development files; it is not a production dependency. No dependency or source licence change implied by the feature.
+
 Runtime: Python (PSF), FastAPI (MIT), Starlette (BSD-3-Clause), HTTPX/httpcore/h11 (BSD-3-Clause/MIT), Pydantic (MIT), Uvicorn (BSD-3-Clause), SQLite (public domain). Transitive distributions and exact versions are recorded in `uv.lock` / `requirements.lock`; consult each installed distribution's license files for authoritative terms. Dev tools: pytest (MIT), Ruff (MIT). No OpenClaw/LangChain/LangGraph agent runtime is included.
 
 LLMs are accessed through the organizer-provided API. Allowed model IDs come from the supplied case/API instruction. No model weights are distributed. Disabling reasoning is a request option tested through this gateway; OpenRouter's documentation is reference material, not proof of the underlying provider or its tariffs.

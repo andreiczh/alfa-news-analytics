@@ -25,6 +25,7 @@ from .workspace import UploadError, MAX_FILE_BYTES
 from .access import COOKIE, SESSION_SECONDS, issue_session, session_principal, signing_key
 from .identity import current_principal, create_principal, restore_principal, PUBLIC_DEMO_RUNS
 from .research import ResearchRequest, ResearchAnswer
+from . import __version__
 
 
 class Feedback(BaseModel):
@@ -52,6 +53,18 @@ class CompanyContext(BaseModel):
 class ResearchFavorite(BaseModel):
     model_config = ConfigDict(extra="forbid")
     saved: bool
+
+
+class NewsRefresh(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    role: str = Field(default="cfo", pattern="^(cfo|treasurer|ceo|coo|cco|other)$")
+    force: bool = False
+
+
+class NewsFeedback(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    news_id: str = Field(pattern=r"^news_[a-f0-9]{24}$")
+    rating: str = Field(pattern="^(relevant|irrelevant)$")
 
 
 def create_app(settings=None):
@@ -230,7 +243,7 @@ def create_app(settings=None):
             return JSONResponse({"status": "worker_unavailable"}, status_code=503)
         return {
             "status": "ok",
-            "version": "0.3.2",
+            "version": __version__,
             "mode": "live",
             "model": settings.model,
             "research_model": settings.research_model,
@@ -311,6 +324,23 @@ def create_app(settings=None):
             "writable": service.workspace.owned(company_id),
             "context": service.workspace.context(company_id),
         }
+
+    @app.get("/api/companies/{company_id}/news")
+    async def company_news(
+        company_id: str,
+        role: str = Query(default="cfo", pattern="^(cfo|treasurer|ceo|coo|cco|other)$"),
+        days: int = Query(default=7, ge=1, le=90),
+    ):
+        return app.state.service.news.get(company_id, role, days)
+
+    @app.post("/api/companies/{company_id}/news/refresh", status_code=202)
+    async def refresh_news(company_id: str, payload: NewsRefresh):
+        return app.state.service.news.refresh(company_id, payload.role, payload.force)
+
+    @app.post("/api/companies/{company_id}/news/feedback", status_code=201)
+    async def news_feedback(company_id: str, payload: NewsFeedback):
+        app.state.service.news.feedback(company_id, payload.news_id, payload.rating)
+        return {"saved": True}
 
     @app.put("/api/companies/{company_id}/context")
     async def company_context(company_id: str, payload: CompanyContext):

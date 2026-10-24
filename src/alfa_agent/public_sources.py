@@ -78,7 +78,7 @@ def read_public(url, *, _depth=0):
             "GET",
             path,
             headers={
-                "User-Agent": "BusinessPulseHackathon/0.3 (public research)",
+            "User-Agent": "BusinessPulseHackathon/0.4 (public research)",
                 "Accept": "text/html,application/rss+xml,application/xml,text/plain",
                 "Accept-Encoding": "identity",
             },
@@ -131,6 +131,8 @@ class PageText(HTMLParser):
         self.main_parts = []
         self.main_depth = 0
         self.published = None
+        self.in_time = False
+        self.time_parts = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
@@ -140,6 +142,11 @@ class PageText(HTMLParser):
             self.skip += 1
         if tag == "title":
             self.in_title = True
+        if tag == "time":
+            value = attrs.get("datetime", "")
+            if re.match(r"^\d{4}-\d{2}-\d{2}", value):
+                self.published = value[:10]
+            self.in_time = True
         if tag in {"p", "h1", "h2", "h3", "li", "div", "br", "tr"}:
             self.parts.append("\n")
             if self.main_depth:
@@ -160,10 +167,14 @@ class PageText(HTMLParser):
             self.skip = max(0, self.skip - 1)
         if tag == "title":
             self.in_title = False
+        if tag == "time":
+            self.in_time = False
 
     def handle_data(self, data):
         if self.in_title:
             self.title.append(data)
+        if self.in_time:
+            self.time_parts.append(data)
         if not self.skip:
             self.parts.append(data)
             if self.main_depth:
@@ -207,7 +218,7 @@ def search_headlines(company_name, topic):
     if topic is None:
         raise PublicSourceError("unsupported_public_topic")
     query = company_name[:160] + " " + topic
-    feed = read_public("https://www.bing.com/search?format=rss&q=" + quote(query))
+    feed = read_public("https://www.bing.com/news/search?format=rss&setlang=ru-RU&q=" + quote(query))
     if "<!DOCTYPE" in feed["text"].upper() or "<!ENTITY" in feed["text"].upper():
         raise PublicSourceError("public_search_unavailable")
     try:
@@ -218,7 +229,9 @@ def search_headlines(company_name, topic):
     for node in root.findall(".//item")[:6]:
         title = unescape(node.findtext("title", ""))[:400]
         publisher = node.findtext("source", "")[:160]
-        url = node.findtext("link", "")
+        from .news_sources import clean_news_url
+
+        url = clean_news_url(node.findtext("link", ""))
         if not url.startswith("https://") or not title:
             continue
         items.append(

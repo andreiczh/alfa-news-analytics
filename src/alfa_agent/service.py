@@ -58,7 +58,9 @@ class Service:
         # Explicit local demo principal, not Alfa SSO or production authorization.
         self.allowed_companies = frozenset(self.corpus.profiles)
         from .research import ResearchService
+        from .news import NewsService
 
+        self.news = NewsService(self)
         self.research = ResearchService(self)
 
     def authorize_company(self, company_id):

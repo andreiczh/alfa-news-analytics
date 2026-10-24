@@ -16,7 +16,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from .bank_library import BankLibrary, terms
 from .gateway import GatewayError
-from .public_sources import PublicSourceError, TOPICS, page_source, search_headlines
+from .public_sources import PublicSourceError, TOPICS, page_source
+from .identity import role_for
+from .news import news_source
+from .news_sources import article_publication
 from .settings import utcnow
 from .storage import Conflict, NotFound, new_id
 from .research_rules import RULES, BANK_ROLES, COMPANY_ROLES
@@ -34,6 +37,7 @@ class ResearchRequest(Strict):
     source_urls: list[str] = Field(default_factory=list, max_length=3)
     news_text: str = Field(default="", max_length=10000)
     parent_id: str | None = Field(default=None, max_length=100)
+    news_item_id: str | None = Field(default=None, pattern=r"^news_[a-f0-9]{24}$")
 
 
 class ResearchAction(Strict):
@@ -209,6 +213,50 @@ def assemble_research(selection, ledger, request, snapshot):
         )
         needs.extend(rule["needs"])
         focuses.append(rule["focus"])
+    selected_news = request.get("news_item_id")
+    event_anchor = next(
+        (
+            a
+            for a in ledger
+            if a.get("news_item")
+            and a["kind"] == "public_page"
+            and (
+                a["source_id"] == selected_news
+                if selected_news
+                else any(a["anchor_id"] in c.anchor_ids for c in ordered_choices)
+            )
+        ),
+        None,
+    )
+    if selected_news:
+        if not event_anchor:
+            raise ValueError("selected_news_article_not_read")
+        if not any(c.source_id == selected_news for f in findings for c in f.citations):
+            raise ValueError("selected_news_must_ground_interpretation")
+    if (
+        request.get("fresh_news_requested")
+        and not event_anchor
+        and any(
+            a.get("news_item") and a.get("provided_for_current_question") and a["kind"] == "public_page"
+            for a in ledger
+        )
+    ):
+        raise ValueError("fresh_news_must_ground_interpretation")
+    if event_anchor:
+        words = list(re.finditer(r"\S+", event_anchor["quote"]))
+        short_quote = event_anchor["quote"][: words[min(23, len(words) - 1)].end()]
+        findings.append(
+            Finding(
+                finding_id="f" + str(len(findings) + 1),
+                kind="source_fact",
+                statement_type="assessment",
+                text="В прочитанной публикации сообщается: «" + short_quote + "».",
+                why_company="Это исходное событие для проверки выбранного канала влияния; наличие экспозиции компании отдельно не установлено.",
+                consequence="Содержание публикации отделено от условной интерпретации и от датированной позиции банка.",
+                priority="background",
+                citations=[SourceQuote(source_id=event_anchor["source_id"], quote=short_quote)],
+            )
+        )
     limitations = [
         "Вывод построен как условный сценарий по проверяемым правилам; фактический знак и денежный эффект по компании не рассчитаны."
     ]
@@ -375,6 +423,8 @@ def evidence_ledger(sources, question):
                     "page": source.get("page"),
                     "claim_type": source.get("claim_type"),
                     "publisher": source.get("publisher"),
+                    "news_item": source.get("news_item", False),
+                    "provided_for_current_question": source.get("provided_for_current_question", False),
                     "bank_owner_explicit": source["kind"] == "bank_claim"
                     or (
                         source["kind"] == "bank_excerpt"
@@ -528,12 +578,23 @@ class ResearchService:
             as_of=utcnow().isoformat(),
             company_name=company_name,
             bank_company=bool(re.search(r"банк|\bbank\b", company_name, re.I)),
+            fresh_news_requested=bool(
+                re.search(r"свеж|последн|текущ|сейчас|за (?:7|семь) дн|за неделю", request.question, re.I)
+            ),
         )
         if parent and parent.get("result"):
             raw["previous_summary"] = parent["result"]["summary"]
         sources = []
         if parent:
             sources = [{**s, "provided_for_current_question": False} for s in parent["sources"]]
+        if request.news_item_id:
+            item = self.service.news.item(request.company_id, request.news_item_id)
+            item_source = news_source(item)
+            if item_source["kind"] == "search_lead":
+                item_source["kind"] = "url_to_read"
+            item_source["provided_for_current_question"] = True
+            sources = [s for s in sources if s["source_id"] != item_source["source_id"]]
+            sources.append(item_source)
         for url in request.source_urls:
             sources.append(
                 {
@@ -884,6 +945,8 @@ class ResearchEngine:
                     "features": features,
                 },
                 "job_title": request["job_title"],
+                "selected_news_source_id": request.get("news_item_id"),
+                "fresh_news_requested": request.get("fresh_news_requested", False),
                 "as_of": request["as_of"],
                 "public_search_enabled": request["public_search"],
                 "sources": sources,
@@ -985,11 +1048,15 @@ class ResearchEngine:
                 elif action.tool == "public":
                     if not request["public_search"]:
                         raise PublicSourceError("public_search_disabled")
-                    if self.service.workspace.case.exists(row["company_id"]) or re.search(
-                        r"\b[UFG]_\d{3,}\b", request["company_name"]
-                    ):
-                        raise PublicSourceError("anonymized_case_company_no_public_resolution")
-                    items = await asyncio.to_thread(search_headlines, request["company_name"], action.topic)
+                    items = await self.service.news.for_research(
+                        row["company_id"],
+                        row["tenant"],
+                        snapshot,
+                        role_for(request["job_title"]),
+                        action.topic,
+                    )
+                    for item in items:
+                        item["provided_for_current_question"] = True
                     add_sources(items)
                     count = len(items)
                 elif action.tool == "read_source":
@@ -1001,6 +1068,13 @@ class ResearchEngine:
                     else:
                         item = await asyncio.to_thread(page_source, source["url"])
                         item["source_id"] = source["source_id"]
+                        if source.get("news_item"):
+                            metadata = article_publication(source, item)
+                            item["published_at"] = source.get("published_at")
+                            item["publication_date_raw"] = source.get("publication_date_raw")
+                            item["date_source"] = source.get("date_source")
+                            item.update(metadata)
+                            item["news_item"] = True
                         item["provided_for_current_question"] = source.get(
                             "provided_for_current_question", False
                         )

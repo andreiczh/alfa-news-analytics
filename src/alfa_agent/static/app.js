@@ -26,6 +26,8 @@ const ICONS = {
   download: '<path d="M12 3v13m-5-5 5 5 5-5M3 17v4h18v-4"/>',
   upload: '<path d="M12 16V3m-5 5 5-5 5 5M3 15v6h18v-6"/>',
   check: '<path d="m4 12 5 5L20 6"/>',
+  refresh:
+    '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/>',
   star: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/>',
 };
 const LABELS = {
@@ -88,6 +90,12 @@ const S = {
   epoch: 0,
   poll: null,
   docPoll: null,
+  news: null,
+  newsPoll: null,
+  newsRole: "cfo",
+  newsDays: 7,
+  newsExpanded: false,
+  newsLoading: false,
   uploading: false,
   starting: false,
   draft: { question: "", news: "", urls: "", public: true },
@@ -671,6 +679,11 @@ function renderHome(main) {
   const left = node("div", "stack"),
     aside = node("aside", "stack");
   left.append(composer(true));
+  const news = node("section", "stack");
+  news.id = "personal-news";
+  news.setAttribute("aria-label", "Новости для компании и роли");
+  left.append(news);
+  renderNews(news);
   const title = node("div", "section-heading");
   title.append(node("h2", "", "Ваши исследования"));
   const filters = node("div", "segmented");
@@ -736,6 +749,347 @@ function historyCard(j) {
     button("Открыть исследование", () => loadJob(j.run_id), "text-button"),
   );
 }
+
+function renderNews(container) {
+  container.replaceChildren();
+  const state = S.news;
+  const roles = { ...ROLES, other: S.me?.job_title || "Руководитель" };
+  const title = add(
+    node("div", "section-heading"),
+    node("h2", "", "Что важно сейчас"),
+  );
+  const refresh = button(
+    S.newsLoading || ["QUEUED", "RUNNING"].includes(state?.status)
+      ? "Ищем новости…"
+      : "Обновить",
+    () => refreshNews(),
+    "button small",
+    "refresh",
+  );
+  refresh.disabled =
+    S.newsLoading || ["QUEUED", "RUNNING"].includes(state?.status);
+  title.append(refresh);
+  container.append(title);
+  const controls = node("div", "news-controls");
+  const role = node("select");
+  role.id = "news-role";
+  for (const [key, label] of Object.entries(roles)) {
+    const option = node("option", "", label);
+    option.value = key;
+    role.append(option);
+  }
+  role.value = S.newsRole;
+  role.addEventListener("change", () => {
+    S.newsRole = role.value;
+    S.newsExpanded = false;
+    loadNews(false);
+  });
+  const period = node("select");
+  period.id = "news-window";
+  for (const [days, label] of [
+    [7, "За 7 дней"],
+    [30, "За 30 дней"],
+    [90, "За 90 дней"],
+  ]) {
+    const option = node("option", "", label);
+    option.value = days;
+    period.append(option);
+  }
+  period.value = S.newsDays;
+  period.addEventListener("change", () => {
+    S.newsDays = Number(period.value);
+    S.newsExpanded = false;
+    loadNews(false);
+  });
+  add(
+    controls,
+    field("Новости для роли", role),
+    field("Период публикации", period),
+  );
+  container.append(controls);
+  container.append(
+    p(
+      "Приоритет учитывает компанию, профиль и задачи роли. Это повод проверить влияние, а не оценка финансового эффекта.",
+      "fine-print",
+    ),
+  );
+  if (!state) {
+    container.append(
+      box(
+        "Собираем свежие публикации из открытых источников. В поиск уйдёт только публичное название компании.",
+      ),
+    );
+    return;
+  }
+  const busy = ["QUEUED", "RUNNING"].includes(state.status);
+  if (state.status === "FAILED")
+    container.append(
+      box(
+        "Не удалось обновить все источники. " +
+          (state.items.length
+            ? "Ниже — последняя доступная подборка; проверьте время обновления."
+            : "Повторите поиск позже или вставьте свою новость в исследование."),
+        "amber",
+      ),
+    );
+  else if (busy)
+    container.append(
+      p(
+        "Обновляем источники и читаем подходящие публикации. Можно продолжать работу.",
+        "fine-print",
+      ),
+    );
+  else if (state.checked_at)
+    container.append(
+      p(
+        "Подборка обновлена " +
+          new Date(state.checked_at).toLocaleString("ru-RU", {
+            timeZone: "Europe/Moscow",
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          }) +
+          " МСК" +
+          (state.stale ? "; требуется обновление" : ""),
+        "caption",
+      ),
+    );
+  const items = state.items || [];
+  if (!items.length && !busy)
+    container.append(
+      empty(
+        "Подходящих свежих публикаций пока нет",
+        "Старые материалы и публикации без подтверждённой даты не выдаются за свежие. Можно расширить период или добавить свой источник.",
+      ),
+    );
+  for (const [index, item] of items
+    .slice(0, S.newsExpanded ? 20 : 5)
+    .entries()) {
+    const c = card(
+      "fresh-news-card" + (index === 0 ? " fresh-news-first" : ""),
+    );
+    c.dataset.newsId = item.news_id;
+    add(
+      c,
+      add(
+        node("div", "between"),
+        badge(
+          {
+            check_now: "Проверить в первую очередь",
+            monitor: "Наблюдать",
+            background: "Контекст",
+          }[item.priority],
+          item.priority === "check_now" ? "amber" : "",
+        ),
+        node("span", "caption", date(item.published_at)),
+      ),
+      node("h3", "", item.title),
+      p(
+        item.publisher +
+          " · " +
+          (item.read_status === "article_read"
+            ? "Текст прочитан"
+            : "Только заголовок — требуется чтение"),
+        "caption",
+      ),
+      p(item.focus, "news-focus"),
+      p(item.reasons.slice(0, 2).join(". "), "fine-print"),
+    );
+    const why = detail("Почему эта новость", list(item.reasons));
+    why.append(
+      p(
+        "Приоритет " +
+          item.score +
+          "/100 — балл отбора, не вероятность. " +
+          (item.read_status === "article_read"
+            ? "Прочитанный текст ещё не означает независимое подтверждение."
+            : "Заголовок не используется как подтверждённое событие."),
+        "fine-print",
+      ),
+    );
+    if (item.related_sources?.length)
+      why.append(
+        p(
+          "Объединено публикаций по одному событию: " +
+            (item.related_sources.length + 1),
+          "fine-print",
+        ),
+      );
+    c.append(why);
+    const actions = node("div", "news-actions");
+    const analyze = button(
+      "Разобрать для " + roles[S.newsRole],
+      async () => {
+        try {
+          await startResearch(
+            "Как событие «" +
+              item.title +
+              "» может повлиять на " +
+              companyName() +
+              " и что стоит проверить " +
+              roles[S.newsRole] +
+              "?",
+            {
+              news_item_id: item.news_id,
+              job_title: roles[S.newsRole],
+              public_search: true,
+            },
+          );
+        } catch (error) {
+          report(error);
+        }
+      },
+      index === 0 ? "button primary" : "button",
+    );
+    add(actions, analyze, link(item.url, "Первоисточник", "text-button"));
+    c.append(actions);
+    c.append(
+      button(
+        "Не по моей задаче",
+        async () => {
+          try {
+            await api(
+              "/api/companies/" + S.company.company_id + "/news/feedback",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  news_id: item.news_id,
+                  rating: "irrelevant",
+                }),
+              },
+            );
+            toast("Отзыв сохранён. Он попадёт в проверку качества отбора.");
+          } catch (error) {
+            report(error);
+          }
+        },
+        "text-button news-feedback",
+      ),
+    );
+    container.append(c);
+  }
+  if (items.length > 5)
+    container.append(
+      button(
+        S.newsExpanded
+          ? "Свернуть подборку"
+          : "Показать ещё " + (items.length - 5),
+        () => {
+          S.newsExpanded = !S.newsExpanded;
+          renderNews(container);
+        },
+        "button",
+      ),
+    );
+  const scope = detail("Источники и границы подбора");
+  scope.append(p(state.scope, "fine-print"));
+  if (state.sources?.length)
+    scope.append(
+      list(
+        state.sources.map(
+          (s) =>
+            s.name +
+            ": " +
+            (s.status === "ok"
+              ? "доступен, публикаций " + s.count
+              : "недоступен"),
+        ),
+      ),
+    );
+  const excluded = state.excluded || {};
+  scope.append(
+    p(
+      "Получено публикаций: " +
+        state.candidate_count +
+        ". Вне периода: " +
+        (excluded.outside_window || 0) +
+        ". Без даты: " +
+        (excluded.unknown_date || 0) +
+        ". Будущая дата: " +
+        (excluded.future_date || 0) +
+        ". Дубликаты объединены: " +
+        (excluded.duplicate_story || 0) +
+        ".",
+      "fine-print",
+    ),
+  );
+  scope.append(
+    p(
+      "Охват ограничен доступными каналами. Пропуск события возможен; одинаковое название компании не подтверждает её юридическую идентичность.",
+      "fine-print",
+    ),
+  );
+  container.append(scope);
+}
+
+function updateNewsView() {
+  const region = $("#personal-news");
+  if (region && S.view === "home") renderNews(region);
+}
+async function loadNews(auto = true) {
+  const cid = S.company?.company_id;
+  if (!cid) return;
+  const role = S.newsRole,
+    days = S.newsDays;
+  clearTimeout(S.newsPoll);
+  try {
+    const result = await api(
+      "/api/companies/" +
+        encodeURIComponent(cid) +
+        "/news?role=" +
+        role +
+        "&days=" +
+        days,
+    );
+    if (
+      cid !== S.company?.company_id ||
+      role !== S.newsRole ||
+      days !== S.newsDays
+    )
+      return;
+    S.news = result;
+    updateNewsView();
+    if (
+      auto &&
+      result.refresh_due &&
+      !["QUEUED", "RUNNING", "FAILED"].includes(result.status)
+    )
+      return refreshNews(false);
+    if (["QUEUED", "RUNNING"].includes(result.status))
+      S.newsPoll = setTimeout(() => loadNews(false), 3000);
+    else if (S.view === "home")
+      S.newsPoll = setTimeout(() => loadNews(true), 60000);
+  } catch (error) {
+    if (cid !== S.company?.company_id) return;
+    S.news = {
+      status: "FAILED",
+      items: [],
+      sources: [],
+      excluded: {},
+      candidate_count: 0,
+    };
+    updateNewsView();
+  }
+}
+async function refreshNews(force = true) {
+  const cid = S.company?.company_id;
+  if (!cid || S.newsLoading) return;
+  S.newsLoading = true;
+  updateNewsView();
+  try {
+    await api("/api/companies/" + encodeURIComponent(cid) + "/news/refresh", {
+      method: "POST",
+      body: JSON.stringify({ role: S.newsRole, force }),
+    });
+    if (cid === S.company?.company_id) await loadNews(false);
+  } catch (error) {
+    report(error);
+  } finally {
+    S.newsLoading = false;
+    updateNewsView();
+  }
+}
 function newsCard() {
   const c = card("news-card");
   add(
@@ -792,6 +1146,7 @@ async function startResearch(question, extra = {}) {
     });
     if (S.company.company_id !== company) return;
     S.job = job;
+    S.role = roleFor(request.job_title);
     S.view = "research";
     S.draft = {
       question: "",
@@ -2156,6 +2511,9 @@ async function selectCompany(id) {
   const epoch = ++S.epoch;
   clearTimeout(S.poll);
   clearTimeout(S.docPoll);
+  clearTimeout(S.newsPoll);
+  S.news = null;
+  S.newsExpanded = false;
   S.job = null;
   S.legacy = null;
   S.legacySources = null;
@@ -2178,6 +2536,7 @@ async function selectCompany(id) {
   S.view = "home";
   render();
   pollDocuments(id);
+  loadNews(true);
 }
 function switchCompany() {
   const content = node("div"),
@@ -2418,6 +2777,7 @@ async function init() {
       library,
       companies,
       role: roleFor(me.job_title),
+      newsRole: me.role || roleFor(me.job_title),
     });
     $("#user-name").textContent = me.full_name;
     $("#user-role").textContent = me.job_title;

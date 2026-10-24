@@ -35,6 +35,8 @@ async def work(once=False, settings=None):
     engine = Engine(settings, service.store, service.corpus, gateway)
     processor = DocumentProcessor(service.workspace, gateway)
     research = ResearchEngine(service.research, gateway)
+    # Public IO has no model calls and must not block the paid research queue.
+    news_task = asyncio.create_task(service.news.work_loop())
     try:
         while True:
             job = await processor.once()
@@ -50,6 +52,8 @@ async def work(once=False, settings=None):
         if not owner or os.getppid() == int(owner):
             raise
     finally:
+        news_task.cancel()
+        await asyncio.gather(news_task, return_exceptions=True)
         if monitor:
             monitor.cancel()
         await gateway.close()

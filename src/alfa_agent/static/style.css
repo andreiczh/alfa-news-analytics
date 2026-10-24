@@ -1,6 +1,50 @@
 .bank-view {
   margin: 16px 0 8px;
 }
+.news-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.news-controls .field {
+  min-width: 160px;
+  flex: 1;
+}
+.fresh-news-card {
+  border-left: 3px solid #e5e8ee;
+}
+.fresh-news-first {
+  border-left-color: var(--red);
+}
+.fresh-news-card h3 {
+  font-size: 18px;
+  line-height: 1.4;
+  margin: 12px 0 6px;
+}
+.news-focus {
+  font-weight: 600;
+  margin: 12px 0 4px;
+}
+.news-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+}
+.news-feedback {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .news-controls .field {
+    min-width: 120px;
+  }
+  .news-actions .button {
+    width: 100%;
+  }
+}
 .bank-view > .badge {
   margin-bottom: 8px;
 }
