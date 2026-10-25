@@ -481,3 +481,38 @@ def test_editing_legacy_reviewed_context_preserves_original_test_provenance(serv
     assert updated["synthetic"] is True
     assert updated["fields"]["priorities"]["synthetic"] is True
     assert updated["fields"]["priorities"]["origin"] == "user_edited"
+
+
+def test_calendar_formats_match_but_matching_digits_cannot_invent_event_date():
+    value = narrative()
+    ledger = [
+        {
+            "anchor_id": "a1",
+            "source_id": "s1",
+            "kind": "public_page",
+            "quote": "Решение принято 23 октября 2026 года. Следующее заседание состоится 18 декабря 2026 года.",
+            "published_at": "2026-10-23",
+        }
+    ]
+    for text in (
+        "Решение 23.10 подтверждено источником.",
+        "Следующее заседание назначено на 18.12.2026.",
+        "Решение принято 23 октября 2026 года.",
+        "Дата решения — 2026-10-23T10:30:00+00:00.",
+    ):
+        value.main_conclusion.text = text
+        assert validate_narrative(value, ledger, {}) == []
+    value.main_conclusion.text = "Следующее заседание назначено на 23.12.2026."
+    assert "unsupported_narrative_date:0" in validate_narrative(value, ledger, {})
+    value.main_conclusion.text = "Следующее заседание назначено на 18 декабря 2027 года."
+    assert "unsupported_narrative_date:0" in validate_narrative(value, ledger, {})
+
+
+def test_calendar_normalization_does_not_turn_percentage_into_calendar_day():
+    from alfa_agent.narrative import calendar_dates, numeric_text, measures
+
+    assert calendar_dates("Решение 23.10 подтверждено") == {"--10-23"}
+    assert calendar_dates("Решение по ставке 23.10%") == set()
+    assert calendar_dates("Решение 23.10%") == set()
+    assert ("23.1", "percent") in measures("Решение 23.10%")
+    assert "23.10" in numeric_text("Показатель 23.10 процента")

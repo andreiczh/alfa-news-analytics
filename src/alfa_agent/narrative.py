@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 from decimal import Decimal
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
@@ -104,8 +105,34 @@ def revision_details(value, ledger):
                 "field": path,
                 "allowed_numbers": sorted(numbers(quotes)),
                 "allowed_measures": sorted(measures(quotes)),
+                "allowed_calendar_dates": sorted(calendar_dates(quotes)),
             }
         )
+    for index, scenario in enumerate(value.scenarios):
+        quotes = " ".join(
+            anchors.get(aid, {}).get("quote", "") + " " + (anchors.get(aid, {}).get("published_at") or "")
+            for aid in scenario.anchor_ids
+        )
+        result.append(
+            {
+                "field": "scenarios[" + str(index) + "]",
+                "allowed_numbers": sorted(numbers(quotes)),
+                "allowed_measures": sorted(measures(quotes)),
+                "allowed_calendar_dates": sorted(calendar_dates(quotes)),
+            }
+        )
+    used = {aid for point in narrative_points(value) for aid in point.anchor_ids}
+    used.update(aid for scenario in value.scenarios for aid in scenario.anchor_ids)
+    quotes = " ".join(
+        a["quote"] + " " + (a.get("published_at") or "") for aid, a in anchors.items() if aid in used
+    )
+    result.append(
+        {
+            "field": "title, forecast_limit",
+            "allowed_numbers": sorted(numbers(quotes)),
+            "allowed_calendar_dates": sorted(calendar_dates(quotes)),
+        }
+    )
     return result
 
 
@@ -162,6 +189,70 @@ _RU_CARDINALS = [
 ]
 
 
+_MONTHS = "января февраля марта апреля мая июня июля августа сентября октября ноября декабря".split()
+
+
+def calendar_parts(text):
+    """Keep a calendar date distinct from a decimal or independently matching digits."""
+    found = set()
+
+    def replace(match, order):
+        parts = match.groupdict()
+        day, month = int(parts[order[0]]), int(parts[order[1]])
+        year = int(parts["year"]) if parts.get("year") else None
+        try:
+            date(year or 2000, month, day)
+        except ValueError:
+            return match[0]
+        found.add(f"{year:04d}-{month:02d}-{day:02d}" if year else f"--{month:02d}-{day:02d}")
+        return (parts.get("cue") or "") + f"{day} {month}" + (f" {year}" if year else "")
+
+    text = re.sub(
+        r"\b(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})(?=T\d{2}:|\b)",
+        lambda m: replace(m, ("day", "month")),
+        text,
+    )
+    text = re.sub(
+        r"\b(?P<day>\d{1,2})[./](?P<month>\d{1,2})[./](?P<year>\d{4})\b",
+        lambda m: replace(m, ("day", "month")),
+        text,
+    )
+    text = re.sub(
+        r"\b(?P<cue>(?:решени\w*|заседани\w*|дат[ауы])\s+)(?P<day>\d{1,2})\.(?P<month>\d{1,2})(?![\d.,]|\s*(?:%|процент|млн|млрд|руб))",
+        lambda m: replace(m, ("day", "month")),
+        text,
+        flags=re.I,
+    )
+    for month, name in enumerate(_MONTHS, 1):
+
+        def written(match, month=month):
+            day = int(match["day"])
+            year = int(match["year"]) if match["year"] else None
+            try:
+                date(year or 2000, month, day)
+            except ValueError:
+                return match[0]
+            found.add(f"{year:04d}-{month:02d}-{day:02d}" if year else f"--{month:02d}-{day:02d}")
+            return f"{day} {month}" + (f" {year}" if year else "")
+
+        text = re.sub(
+            r"\b(?P<day>\d{1,2})\s+" + name + r"\b(?:\s+(?P<year>\d{4})\b)?", written, text, flags=re.I
+        )
+    return text, found
+
+
+def calendar_dates(text):
+    return calendar_parts(text)[1]
+
+
+def supported_dates(text, evidence):
+    available = calendar_dates(evidence)
+    return all(
+        value in available or (value.startswith("--") and any(a.endswith(value[2:]) for a in available))
+        for value in calendar_dates(text)
+    )
+
+
 def numeric_text(text):
     """Measured Russian cardinals also need numeric evidence; spelling out a value is no escape."""
     units = (
@@ -184,7 +275,7 @@ def numeric_text(text):
             return match[0]
         return (" ".join(words) + " " if words else "") + str(sum(values)) + match[2]
 
-    return re.sub(pattern, convert, text, flags=re.I)
+    return re.sub(pattern, convert, calendar_parts(text)[0], flags=re.I)
 
 
 def measures(text):
@@ -262,6 +353,8 @@ def validate_narrative(value, ledger, confirmed_context, bank_company=False):
         all_evidence.append(local)
         if not numbers(point.text + " " + point.condition) <= numbers(local):
             issues.append("unsupported_narrative_number:" + str(index))
+        if not supported_dates(point.text + " " + point.condition, local):
+            issues.append("unsupported_narrative_date:" + str(index))
         if not measures(point.text + " " + point.condition) <= measures(local):
             issues.append("unsupported_narrative_unit:" + str(index))
         if point.kind not in {"source_fact", "source_forecast"} and probability_claim(
@@ -274,10 +367,18 @@ def validate_narrative(value, ledger, confirmed_context, bank_company=False):
             r"гарантир|обязательно|точно произойд", point.text, re.I
         ):
             issues.append("narrative_unwarranted_certainty")
+    for scenario in value.scenarios:
+        all_evidence.extend(
+            anchors[aid]["quote"] + " " + (anchors[aid].get("published_at") or "")
+            for aid in scenario.anchor_ids
+            if aid in anchors
+        )
     if not numbers(value.title) <= numbers(" ".join(all_evidence)):
         issues.append("unsupported_narrative_title_number")
     if not numbers(value.forecast_limit) <= numbers(" ".join(all_evidence)):
         issues.append("unsupported_forecast_limit_number")
+    if not supported_dates(value.title + " " + value.forecast_limit, " ".join(all_evidence)):
+        issues.append("unsupported_narrative_overview_date")
     if value.forecast_status == "insufficient_evidence" and value.scenarios:
         issues.append("insufficient_forecast_cannot_publish_scenarios")
     if value.forecast_status == "conditional_scenarios":
@@ -304,6 +405,8 @@ def validate_narrative(value, ledger, confirmed_context, bank_company=False):
             )
             if not numbers(text) <= numbers(local):
                 issues.append("unsupported_forecast_number")
+            if not supported_dates(text, local):
+                issues.append("unsupported_forecast_date")
             if not measures(text) <= measures(local):
                 issues.append("unsupported_forecast_unit")
             if probability_claim(text) or re.search(r"гарантир|точно произойд", text, re.I):

@@ -1336,7 +1336,7 @@ class ResearchEngine:
                             "limitations": draft.limitations,
                         },
                     }
-                    for revision in range(2):
+                    for revision in range(1 + self.settings.max_replans):
                         narrative = await invoke(
                             "research_narrative",
                             DecisionNarrative,
@@ -1367,7 +1367,7 @@ class ResearchEngine:
                                 "evidence_ledger": ledger if issues else None,
                             },
                         )
-                        if not issues or revision or state["replans"] >= self.settings.max_replans:
+                        if not issues or state["replans"] >= self.settings.max_replans:
                             break
                         state["replans"] += 1
                         narrative_payload.update(
