@@ -1013,7 +1013,7 @@ class ResearchService:
                     "question": json.loads(r["input_json"])["question"],
                 }
                 for r in db.execute(
-                    "SELECT * FROM research_jobs WHERE company_id=? AND tenant=? ORDER BY created_at DESC LIMIT 25",
+                    "SELECT id,status,created_at,favorite,input_json FROM research_jobs WHERE company_id=? AND tenant=? ORDER BY created_at DESC LIMIT 25",
                     (company_id, self.service.tenant),
                 )
             ]

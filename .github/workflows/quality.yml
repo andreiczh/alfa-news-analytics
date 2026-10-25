@@ -42,6 +42,24 @@ jobs:
       - name: Container diagnostics
         if: failure()
         run: docker logs alfa-smoke || true
+      - name: Compose API and worker
+        run: |
+          python - <<'PY'
+          import os
+          with os.fdopen(os.open('.env.local', os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'w') as f:
+              f.write('ALFA_ACCESS_PASSWORD=synthetic-ci-invitation-code\nALFA_SESSION_SECRET=synthetic-ci-signing-secret-not-for-real-use\nALFA_AUTH_MODE=accounts\nALFA_REQUIRE_WORKER=1\n')
+          PY
+          docker compose --project-name alfa-ci up --detach --build
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://localhost:8765/api/health > /tmp/alfa-compose-health.json; then break; fi
+            sleep 2
+          done
+          python -c "import json; p=json.load(open('/tmp/alfa-compose-health.json')); assert p['status']=='ok' and p['auth_mode']=='accounts' and p['readiness']['worker']=='ok'"
+      - name: Compose diagnostics
+        if: failure()
+        run: docker compose --project-name alfa-ci logs --tail 80 || true
       - name: Stop test container
         if: always()
-        run: docker rm --force alfa-smoke || true
+        run: |
+          docker rm --force alfa-smoke || true
+          docker compose --project-name alfa-ci down --volumes || true

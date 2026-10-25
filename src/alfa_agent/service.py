@@ -51,6 +51,11 @@ class Answer(BaseModel):
 class Service:
     def __init__(self, settings: Settings, *, seed_examples=True):
         self.settings = settings
+        if seed_examples and not settings.database_url:
+            # Both Compose processes enter the same file lock before opening SQLite.
+            from .bootstrap import prepare_state
+
+            prepare_state(settings)
         self.store = Store(settings.db_path, settings.database_url, settings.database_schema)
         self.corpus = Corpus(settings.bundle_path)
         self.workspace = Workspace(settings, self.store)
