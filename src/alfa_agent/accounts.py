@@ -119,7 +119,7 @@ class Accounts:
             self.event(db, user_id, "account_registered", principal.company_id)
         return principal
 
-    def login(self, login, password):
+    def login(self, login, password, *, with_session=False):
         with self.store.connection() as db:
             row = db.execute("SELECT * FROM accounts WHERE login=?", (login.strip().casefold(),)).fetchone()
         valid = password_matches(password, row["password_hash"] if row else self.dummy_password)
@@ -130,14 +130,21 @@ class Accounts:
             if not profile:
                 raise AuthError("Рабочее пространство недоступно. Обратитесь к администратору.")
             self.event(db, row["id"], "login")
-        return Principal(**{key: profile[key] for key in Principal.__dataclass_fields__})
+        principal = Principal(**{key: profile[key] for key in Principal.__dataclass_fields__})
+        return (
+            (principal, self.new_session(principal, expected_auth_version=row["auth_version"]))
+            if with_session
+            else principal
+        )
 
-    def new_session(self, principal):
+    def new_session(self, principal, *, expected_auth_version=None):
         sid = secrets.token_urlsafe(32)
         with self.store.connection() as db:
             account = db.execute("SELECT * FROM accounts WHERE id=?", (principal.user_id,)).fetchone()
             if not account or account["disabled"]:
                 raise AuthError("Учётная запись недоступна.")
+            if expected_auth_version is not None and account["auth_version"] != expected_auth_version:
+                raise AuthError("Данные входа изменены. Войдите заново.")
             db.execute("DELETE FROM account_sessions WHERE expires_at<?", (time.time(),))
             db.execute(
                 "INSERT INTO account_sessions VALUES(?,?,?,?,?)",
@@ -176,15 +183,19 @@ class Accounts:
     def change_password(self, old, new):
         principal = current_principal.get()
         with self.store.connection() as db:
-            row = db.execute("SELECT password_hash FROM accounts WHERE id=?", (principal.user_id,)).fetchone()
+            row = db.execute(
+                "SELECT password_hash,auth_version FROM accounts WHERE id=?", (principal.user_id,)
+            ).fetchone()
         if not row or not password_matches(old, row[0]):
             raise AuthError("Неверный текущий пароль.")
         encoded = password_hash(new)
         with self.store.connection() as db:
-            db.execute(
-                "UPDATE accounts SET password_hash=?,auth_version=auth_version+1 WHERE id=?",
-                (encoded, principal.user_id),
+            updated = db.execute(
+                "UPDATE accounts SET password_hash=?,auth_version=auth_version+1 WHERE id=? AND auth_version=?",
+                (encoded, principal.user_id, row["auth_version"]),
             )
+            if updated.rowcount != 1:
+                raise AuthError("Пароль уже изменён. Войдите заново.")
             db.execute("DELETE FROM account_sessions WHERE user_id=?", (principal.user_id,))
             self.event(db, principal.user_id, "password_changed_sessions_revoked")
 

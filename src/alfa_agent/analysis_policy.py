@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import re
 from zoneinfo import ZoneInfo
 
-POLICY_VERSION = "2026-10-25-v6.1"
+POLICY_VERSION = "2026-10-25-v6.2"
 
 
 RELATIVE_CALENDAR = re.compile(
@@ -34,14 +34,18 @@ DIRECTION = re.compile(
     re.I,
 )
 CONDITIONAL = re.compile(
-    r"\bесли\b|при\s+(?:условии|росте|снижении|опережающ|превышении|изменении)|зависит\s+от", re.I
+    r"\bесли\b|при\s+(?:условии|росте|снижении|опережающ|превышении|изменении|углублении|усилении|ослаблении|расширении|сжатии)|зависит\s+от",
+    re.I,
 )
 NEW_COST = re.compile(
     r"(?:кредит|за[её]м|фондирован|долг)\w*[^.!?]{0,65}(?:дорожа\w*|подорож\w*|станов\w*\s+дороже|удорожа\w*)|"
     r"рост\w*\s+стоимост\w*\s+(?:кредит|за[её]м|фондирован|долг)",
     re.I,
 )
-SEPARATE_CAUSE = re.compile(r"лаг\w*|предыдущ\w*\s+(?:повыш|переоцен)|спред\w*|преми\w*\s+за\s+риск", re.I)
+SEPARATE_CAUSE = re.compile(
+    r"лаг\w*|предыдущ\w*\s+(?:повыш|переоцен)|спред\w*|преми\w*\s+за\s+риск|(?:рост|повышени\w*)\s+ключев\w*\s+ставк|ключев\w*\s+ставк\w*\s+(?:выраст|повыс)",
+    re.I,
+)
 
 
 def planning_policy(as_of: str, days: int = 30):
@@ -80,6 +84,12 @@ def asserts_new_cost(text):
 def sentence_issues(text: str, *, bank: bool, pause: bool, fixed_debt: bool = False):
     issues = []
     for sentence in re.split(r"(?<!\d)[.!?](?!\d)|[;\n]", text):
+        if re.search(
+            r"(?:сохран\w*|фиксир\w*|закреп\w*)[^.!?]{0,70}ставк\w*[^.!?]{0,90}в(?:есь|с[её]м|сего)\s+(?:планов|выбран)",
+            sentence,
+            re.I,
+        ) and not CONDITIONAL.search(sentence):
+            issues.append("current_rate_decision_is_not_a_future_commitment")
         if re.search(
             r"депозитн\w*\s+бет\w*\s+(?:определя\w*|показыва\w*|отража\w*)\s+(?:скорост|срок|быстрот)",
             sentence,
@@ -255,6 +265,8 @@ def policy_issues(value, ledger, *, as_of, days=30, bank=False, profile=None):
         for signal in scenario.change_signals:
             if any(d < policy["as_of"] for d in calendar_dates(signal) if not d.startswith("--")):
                 issues.append(f"past_date_in_future_signal:scenario[{index}]")
+            if any(d > policy["end"] for d in calendar_dates(signal) if not d.startswith("--")):
+                issues.append(f"future_signal_outside_planning_window:scenario[{index}]")
         issues.extend(
             f"{issue}:scenario[{index}]"
             for issue in sentence_issues(text, bank=bank, pause=pause, fixed_debt=fixed)

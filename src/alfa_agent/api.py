@@ -192,8 +192,12 @@ def create_app(settings=None):
             session_principal(request.cookies.get(COOKIE, ""), session_key) if access_password else None
         )
         if accounts_mode:
-            principal = await run_in_threadpool(
-                app.state.service.accounts.authenticate, request.cookies.get(COOKIE, ""), session_key
+            principal = (
+                None
+                if public_path
+                else await run_in_threadpool(
+                    app.state.service.accounts.authenticate, request.cookies.get(COOKIE, ""), session_key
+                )
             )
         if access_password and not public_path and principal is None:
             if request.url.path.startswith("/api/"):
@@ -226,7 +230,7 @@ def create_app(settings=None):
                     return JSONResponse({"detail": "file_size_limit"}, status_code=413)
         marker = current_principal.set(principal)
         try:
-            if principal and not public_path:
+            if principal and not public_path and not accounts_mode:
                 workspace = app.state.service.workspace
                 with workspace.store.connection() as db:
                     known = db.execute(
@@ -306,9 +310,10 @@ def create_app(settings=None):
                 service.accounts.limit(
                     "login_ip", request.client.host if request.client else "unknown", 100, 900
                 )
-                service.accounts.limit("login_account", str(form.get("login", "")).casefold(), 10, 900)
-                principal = service.accounts.login(str(form.get("login", "")), supplied)
-                return principal, service.accounts.new_session(principal)
+                service.accounts.limit(
+                    "login_account", str(form.get("login", "")).strip().casefold(), 10, 900
+                )
+                return service.accounts.login(str(form.get("login", "")), supplied, with_session=True)
 
             try:
                 principal, sid = await run_in_threadpool(authenticate)

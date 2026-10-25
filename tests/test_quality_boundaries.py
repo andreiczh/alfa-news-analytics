@@ -223,3 +223,10 @@ def test_a_macro_scenario_cannot_guarantee_cash_sufficiency_or_company_profit():
         x.startswith("scenario_outcome_requires_explicit_conditional_check")
         for x in validate_narrative(value, LEDGER, {}, as_of=AS_OF)
     )
+
+
+def test_working_capital_does_not_prioritize_bank_capital_registers():
+    from alfa_agent.news_ranking import topics_for
+
+    assert "funding" in topics_for({"title": "Оборотный капитал и сроки оплаты", "excerpt": ""})
+    assert "capital" not in topics_for({"title": "Оборотный капитал и сроки оплаты", "excerpt": ""})

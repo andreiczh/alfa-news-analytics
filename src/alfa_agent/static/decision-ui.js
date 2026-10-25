@@ -898,6 +898,7 @@ function renderNarrative(main, job) {
   const reviewed = gate.status === "reviewed_by_user";
   notice.append(badge(reviewed ? "Просмотрено пользователем" : gate.status === "rejected_by_user" ? "Отклонено пользователем" : "Черновик: требуется проверка"),
     p("Автоматическая проверка не заменяет финансовую экспертизу. Чистый эффект на компанию не рассчитан без её финансовой модели.","fine-print"));
+  if (value.generation_mode === "rate_pause_policy_v1") notice.append(p("Условные сценарии для проверки допущений. Вероятности и финансовый эффект не рассчитаны.","fine-print"));
   if (!gate.current_rules) notice.append(p("Отчёт создан до текущих правил проверки. Для использования выводов запустите исследование заново.","fine-print"));
   else if (S.me.auth_mode === "accounts") notice.append(button("Проверить и отметить результат",()=>reviewResearch(job),"button small"));
   if (job.user_review) notice.append(p(job.user_review.comment,"fine-print"));

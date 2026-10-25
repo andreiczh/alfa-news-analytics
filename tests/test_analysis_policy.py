@@ -202,3 +202,17 @@ def test_negated_cost_shock_is_not_a_positive_forecast_and_does_not_excuse_a_con
     assert "pause_is_not_a_new_cost_shock" in sentence_issues(
         "Пауза не означает рост стоимости кредита, однако фондирование подорожает.", bank=False, pause=True
     )
+
+
+def test_conditional_spread_growth_and_a_new_hike_are_separate_causes_from_pause():
+    assert not sentence_issues(
+        "При углублении дефицита ликвидности спред может вырасти и новое фондирование может подорожать.",
+        bank=True,
+        pause=True,
+    )
+    assert not sentence_issues(
+        "Если ключевая ставка повысится, новые кредиты могут подорожать.", bank=False, pause=True
+    )
+    value = memo()
+    value.scenarios[0].change_signals = ["Решение по ставке 18 декабря 2026 года"]
+    assert any(x.startswith("future_signal_outside_planning_window") for x in check(value))

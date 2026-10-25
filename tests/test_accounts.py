@@ -171,3 +171,28 @@ def test_disabled_account_and_shared_invitation_code_do_not_authenticate(app):
             ).status_code
             == 401
         )
+
+
+def test_inflight_old_password_login_cannot_mint_a_session_after_password_reset(service, monkeypatch):
+    from alfa_agent.accounts import AuthError
+
+    principal = service.accounts.register(
+        "racing-login", PASSWORD, "Synthetic User", "Synthetic Company", "CFO"
+    )
+    original = service.accounts.new_session
+
+    def reset_before_session(principal, *, expected_auth_version=None):
+        with service.store.connection() as db:
+            db.execute("UPDATE accounts SET auth_version=auth_version+1 WHERE id=?", (principal.user_id,))
+        return original(principal, expected_auth_version=expected_auth_version)
+
+    monkeypatch.setattr(service.accounts, "new_session", reset_before_session)
+    with pytest.raises(AuthError, match="изменены"):
+        service.accounts.login("racing-login", PASSWORD, with_session=True)
+    with service.store.connection() as db:
+        assert (
+            db.execute(
+                "SELECT count(*) FROM account_sessions WHERE user_id=?", (principal.user_id,)
+            ).fetchone()[0]
+            == 0
+        )

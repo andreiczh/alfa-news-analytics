@@ -17,7 +17,7 @@ TOPIC_RULES = {
     ),
     "funding": (
         "Фондирование и ликвидность",
-        r"фондир|ликвидност|депозит|облигац|доходност|своп|репо|привлечен\w* средств|привлечён\w* средств",
+        r"фондир|ликвидност|депозит|облигац|доходност|своп|репо|привлечен\w* средств|привлечён\w* средств|денежн\w*\s+цикл|дебитор|кредитор|срок\w*\s+оплат",
     ),
     "capital": (
         "Капитал и регулирование",
@@ -271,6 +271,8 @@ def company_context(snapshot):
 
 def topics_for(item):
     text = item["title"] + " " + item.get("excerpt", "")[:1500]
+    # Corporate working capital is a cash-cycle topic, not bank regulatory capital.
+    text = re.sub(r"оборотн\w*\s+капитал\w*", "денежный цикл", text, flags=re.I)
     # A proper company name ending in "Капитал" does not describe bank capital.
     text = re.sub(r"[А-ЯЁA-Z][а-яёa-z]+[- ]+Капитал\b", " ", text)
     if re.search(r"приглаша\w* студентов|чемпионат|научн\w* конференц", item["title"], re.I):
@@ -296,6 +298,7 @@ def score_item(item, context, role, now, window_days=7):
         return None, "date_conflict"
     topics = topics_for(item)
     title = item["title"]
+    headline_topics = topics_for({"title": title, "excerpt": ""})
     direct = not context["anonymous"] and entity_matches(context["name"], title)
     industry = context.get("industry", "")
     if direct and re.search(r"\bКХЛ\b|\bХК\b|матч\w*|хоккей|плей.офф|прямая трансляция", title, re.I):
@@ -340,7 +343,7 @@ def score_item(item, context, role, now, window_days=7):
     own_domain = domain_of(context.get("website", ""))
     host = domain_of(item["url"])
     primary = within_domain(host, PRIMARY_DOMAINS) or bool(own_domain and within_domain(host, {own_domain}))
-    macro = bool(set(topics) & {"rates", "inflation", "fx"})
+    macro = bool(set(headline_topics) & {"rates", "inflation", "fx"})
     bank_sector = bool(
         re.search(
             r"\bбанк\w*|банковск|кредитн\w*\s+организац|плат[её]жн\w*\s+систем|банкомат|\bЦБ\b|\bРЕПО\b|денежн\w*\s+рынок|цифров\w*\s+рубл",
@@ -359,9 +362,8 @@ def score_item(item, context, role, now, window_days=7):
         "услуг",
     }
     industry_match = bool(industry_words & {w[:6] for w in re.findall(r"[а-яёa-z]{5,}", title.casefold())})
-    priority_match = sorted(set(topics) & set(context.get("priority_topics", [])))
+    priority_match = sorted(set(headline_topics) & set(context.get("priority_topics", [])))
     competitor_match = [c for c in context.get("competitors", []) if entity_matches(c, title)]
-    headline_topics = topics_for({"title": title, "excerpt": ""})
     if not direct and not sector and not industry_match and not competitor_match and not headline_topics:
         return None, "no_headline_business_channel"
     if (

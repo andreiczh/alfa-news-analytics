@@ -190,6 +190,11 @@ def revision_details(value, ledger):
                 "unsupported_measures": sorted(
                     measures(point.text + " " + point.condition) - measures(quotes)
                 ),
+                "unsupported_calendar_dates": [
+                    d
+                    for d in sorted(calendar_dates(point.text + " " + point.condition))
+                    if not supported_dates(d, quotes)
+                ],
                 "required_kind": (
                     "source_fact/source_forecast/source_assessment"
                     if path.startswith("situation")
@@ -215,12 +220,30 @@ def revision_details(value, ledger):
             anchors.get(aid, {}).get("quote", "") + " " + (anchors.get(aid, {}).get("published_at") or "")
             for aid in scenario.anchor_ids
         )
+        fields = {
+            "title": scenario.title,
+            "outcome": scenario.outcome,
+            "mechanism": scenario.mechanism,
+            "confidence_reason": scenario.confidence_reason,
+            **{f"assumptions[{i}]": s for i, s in enumerate(scenario.assumptions)},
+            **{f"change_signals[{i}]": s for i, s in enumerate(scenario.change_signals)},
+        }
         result.append(
             {
                 "field": "scenarios[" + str(index) + "]",
                 "allowed_numbers": sorted(numbers(quotes)),
                 "allowed_measures": sorted(measures(quotes)),
                 "allowed_calendar_dates": sorted(calendar_dates(quotes)),
+                "calendar_field_errors": {
+                    path: {
+                        "text": text,
+                        "unsupported_dates": [
+                            d for d in sorted(calendar_dates(text)) if not supported_dates(d, quotes)
+                        ],
+                    }
+                    for path, text in fields.items()
+                    if not supported_dates(text, quotes)
+                },
             }
         )
     used = {aid for point in narrative_points(value) for aid in point.anchor_ids}

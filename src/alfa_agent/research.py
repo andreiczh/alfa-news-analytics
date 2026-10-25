@@ -519,6 +519,10 @@ def evidence_ledger(sources, question):
         candidates = []
         for quote, complete in evidence_passages(text):
             candidates.append((len(terms(quote) & wanted), quote, complete))
+        if source.get("provided_for_current_question") and source.get("news_item"):
+            headline = news_headline_quote(source)
+            if headline and len(headline) >= 30:
+                candidates.append((len(wanted) + 100, headline, True))
         candidates.sort(key=lambda x: x[0], reverse=True)
         for _, quote, complete in candidates[:2]:
             ledger.append(
@@ -1529,16 +1533,29 @@ class ResearchEngine:
                             "limitations": draft.limitations,
                         },
                     }
+                    from .rate_policy import rate_pause_memo
+
+                    governed = rate_pause_memo(ledger, state["sources"], request, snapshot)
                     for revision in range(1 + self.settings.max_replans):
-                        selection = await invoke(
-                            "research_narrative",
-                            NarrativeSelection,
-                            narrative_payload,
-                            decision_schema(
-                                ledger, snapshot.get("context", {}), narrative_payload["analysis_policy"]
-                            ),
-                        )
-                        narrative = bind_source_messages(selection, narrative_payload["source_messages"])
+                        if governed is not None:
+                            narrative = governed
+                            audit(
+                                "governed_financial_narrative",
+                                {
+                                    "module": "rate_pause_policy_v1",
+                                    "scope": "fresh_read_primary_cbr_unchanged_rate_event",
+                                },
+                            )
+                        else:
+                            selection = await invoke(
+                                "research_narrative",
+                                NarrativeSelection,
+                                narrative_payload,
+                                decision_schema(
+                                    ledger, snapshot.get("context", {}), narrative_payload["analysis_policy"]
+                                ),
+                            )
+                            narrative = bind_source_messages(selection, narrative_payload["source_messages"])
                         # Used context is server-owned metadata, derived from the
                         # actual citations, not from a model's assertion of usage.
                         used = {
@@ -1595,6 +1612,8 @@ class ResearchEngine:
                                 "evidence_ledger": ledger if issues else None,
                             },
                         )
+                        if issues and governed is not None:
+                            raise ValueError("rate_policy_validation_failed:" + ",".join(issues))
                         if not issues or state["replans"] >= self.settings.max_replans:
                             break
                         state["replans"] += 1
@@ -1614,9 +1633,12 @@ class ResearchEngine:
                         )
                         draft.title, draft.summary = narrative.title, narrative.main_conclusion.text
                         draft.narrative["planning_policy"] = narrative_payload["analysis_policy"]
+                        draft.narrative["generation_mode"] = (
+                            "rate_pause_policy_v1" if governed is not None else "llm_source_bound"
+                        )
                         draft.narrative["financial_scope"] = {
                             "net_company_effect": "not_calculated",
-                            "reason": "Нет модели баланса и чувствительности компании; описаны условные каналы влияния.",
+                            "reason": "В исследовании не выполнялся расчёт по полной финансовой модели; описаны условные каналы влияния.",
                         }
                         issues = validate_draft(draft, state["sources"], bank_company=request["bank_company"])
                 except ValueError as failure:

@@ -1,6 +1,6 @@
 [project]
 name = "alfa-news-agent"
-version = "0.6.1"
+version = "0.6.2"
 description = "Own Python research loop: rate news, company exposures, bank evidence and role views"
 requires-python = ">=3.12,<3.14"
 dependencies = [

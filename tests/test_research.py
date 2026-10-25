@@ -97,6 +97,16 @@ class ResearchGateway:
                 ],
                 "bank_anchor_id": anchor["anchor_id"] if bank else "",
             }
+            selected_event = next(
+                (
+                    a
+                    for a in payload["evidence_ledger"]
+                    if a["source_id"] == payload.get("selected_news_source_id")
+                ),
+                None,
+            )
+            if selected_event and selected_event["anchor_id"] not in value["findings"][0]["anchor_ids"]:
+                value["findings"][0]["anchor_ids"].append(selected_event["anchor_id"])
             if self.bad_number:
                 value["findings"][0]["anchor_ids"] = ["a777"]
                 self.bad_number = False
@@ -519,3 +529,42 @@ def test_draft_header_uses_same_calendar_normalization_as_narrative():
     assert validate_draft(draft, sources) == []
     draft.title = "Решение требует проверки эффекта в размере 777 рублей"
     assert "unsupported_summary_number" in validate_draft(draft, sources)
+
+
+def test_fresh_read_cbr_pause_uses_host_financial_rules_and_live_protocol_stages(service, monkeypatch):
+    from datetime import timedelta
+    from alfa_agent.settings import utcnow
+
+    cid = service.workspace.create_company("Синтетический Банк")["company_id"]
+    nid = "news_" + "a" * 24
+    item = {
+        "news_id": nid,
+        "title": "Банк России принял решение сохранить ключевую ставку",
+        "publisher": "Synthetic protocol fixture",
+        "url": "https://www.cbr.ru/press/keypr/",
+        "published_at": (utcnow() - timedelta(hours=1)).isoformat(),
+        "date_source": "publisher_feed",
+        "read_status": "article_read",
+        "text": "Банк России принял решение сохранить ключевую ставку на уровне 14,00% годовых.",
+    }
+    monkeypatch.setattr(service.news, "item", lambda company_id, news_id: item)
+    request = ResearchRequest(
+        company_id=cid,
+        question="Как сохранение ставки связано с фондированием банка?",
+        news_item_id=nid,
+        public_search=False,
+        role="cfo",
+    )
+    job = service.research.create(request, "governed-rate-test")
+    gateway = ResearchGateway()
+    asyncio.run(ResearchEngine(service.research, gateway).once())
+    result = service.research.get(job["run_id"])
+    assert result["status"] == "PARTIAL", [
+        (x["event"], x["data"])
+        for x in result["trace"]
+        if x["event"] in {"narrative_validation", "verification"}
+    ]
+    assert result["result"]["narrative"]["generation_mode"] == "rate_pause_policy_v1"
+    assert "research_narrative" not in gateway.stages
+    assert gateway.stages == ["research_plan", "research_write", "research_verify"]
+    assert result["verification"]["human_verified"] is False
