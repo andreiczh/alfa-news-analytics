@@ -702,6 +702,8 @@ function composer(compact = false) {
           .filter(Boolean),
         news_text: news.value,
         public_search: checkbox.checked,
+        seed_news_ids:
+          q === S.draft.seedQuestion ? S.draft.seedNewsIds || [] : [],
       });
     } catch (error) {
       report(error);

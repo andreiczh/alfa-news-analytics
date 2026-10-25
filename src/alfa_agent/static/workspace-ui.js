@@ -248,6 +248,10 @@ function renderSearchResults(scope) {
       "Настроить исследование",
       () => {
         S.draft.question = q;
+        S.draft.seedQuestion = q;
+        S.draft.seedNewsIds = result.news
+          .slice(0, 3)
+          .map((item) => item.news_id);
         S.job = null;
         go("research");
       },
