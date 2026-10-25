@@ -280,6 +280,22 @@ class ContextService:
             if revision != payload.expected_revision:
                 raise Conflict("company_context_changed")
             fields = json.loads(row["fields_json"]) if row else {}
+            legacy_turn_ids = {f["turn_id"] for f in fields.values() if f.get("turn_id")}
+            if legacy_turn_ids:
+                placeholders = ",".join("?" for _ in legacy_turn_ids)
+                origins = db.execute(
+                    "SELECT id,input_json FROM context_turns WHERE company_id=? AND status='CONFIRMED' "
+                    "AND id IN (" + placeholders + ")",
+                    [company_id, *legacy_turn_ids],
+                ).fetchall()
+                test_turns = {
+                    origin["id"]
+                    for origin in origins
+                    if marked_test_context(json.loads(origin["input_json"])["message"])
+                }
+                for previous in fields.values():
+                    if previous.get("turn_id") in test_turns:
+                        previous["synthetic"] = True
             for item in payload.fields:
                 if item.value.strip():
                     fields[item.key] = {

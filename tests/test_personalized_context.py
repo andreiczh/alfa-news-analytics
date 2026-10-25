@@ -453,3 +453,31 @@ def test_test_marker_survives_context_structuring_but_public_info_is_not_synthet
         ContextConfirm(expected_revision=0, fields=[field("Следим за спросом клиентов.")]),
     )
     assert service.workspace.context(cid)["synthetic"] is True
+
+
+def test_editing_legacy_reviewed_context_preserves_original_test_provenance(service):
+    cid = own_company(service)
+    message = "Тестовый профиль продукта. Приоритет: стоимость фондирования."
+    turn = service.context_dialogue.create(
+        cid, ContextMessage(message=message, expected_revision=0), "legacy-test-provenance"
+    )
+    asyncio.run(ContextEngine(service.context_dialogue, ContextGateway()).once())
+    service.context_dialogue.confirm(
+        cid, turn["turn_id"], ContextConfirm(expected_revision=0, fields=[field(message)])
+    )
+    with service.store.connection() as db:
+        row = db.execute("SELECT fields_json FROM company_strategy WHERE company_id=?", (cid,)).fetchone()
+        previous = json.loads(row["fields_json"])
+        previous["priorities"].pop("synthetic")
+        previous["priorities"]["value"] = "Стоимость фондирования"
+        db.execute(
+            "UPDATE company_strategy SET fields_json=? WHERE company_id=?", (json.dumps(previous), cid)
+        )
+    assert service.workspace.context(cid)["synthetic"] is True
+    updated = service.context_dialogue.save_fields(
+        cid, ContextConfirm(expected_revision=1, fields=[field("Стоимость фондирования и депозитные ставки")])
+    )
+    assert updated["revision"] == 2
+    assert updated["synthetic"] is True
+    assert updated["fields"]["priorities"]["synthetic"] is True
+    assert updated["fields"]["priorities"]["origin"] == "user_edited"
