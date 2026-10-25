@@ -26,7 +26,9 @@ from .analysis_policy import planning_policy, POLICY_VERSION
 from .personalization import is_bank_company
 from .research_rules import RULES, BANK_ROLES, COMPANY_ROLES
 from .narrative import (
-    DecisionNarrative,
+    NarrativeSelection,
+    source_message_options,
+    bind_source_messages,
     validate_narrative,
     bind_narrative,
     decision_schema,
@@ -1519,6 +1521,7 @@ class ResearchEngine:
                         ),
                         "selected_news_source_id": request.get("news_item_id"),
                         "evidence_ledger": ledger,
+                        "source_messages": source_message_options(ledger),
                         "verification_issues": state["issues"],
                         "draft": {
                             "findings": [f.model_dump(exclude={"citations"}) for f in draft.findings],
@@ -1527,14 +1530,15 @@ class ResearchEngine:
                         },
                     }
                     for revision in range(1 + self.settings.max_replans):
-                        narrative = await invoke(
+                        selection = await invoke(
                             "research_narrative",
-                            DecisionNarrative,
+                            NarrativeSelection,
                             narrative_payload,
                             decision_schema(
                                 ledger, snapshot.get("context", {}), narrative_payload["analysis_policy"]
                             ),
                         )
+                        narrative = bind_source_messages(selection, narrative_payload["source_messages"])
                         # Used context is server-owned metadata, derived from the
                         # actual citations, not from a model's assertion of usage.
                         used = {
@@ -1595,7 +1599,7 @@ class ResearchEngine:
                             break
                         state["replans"] += 1
                         narrative_payload.update(
-                            previous_unverified_narrative=narrative.model_dump(mode="json"),
+                            previous_unverified_narrative=selection.model_dump(mode="json"),
                             validation_issues=issues,
                             per_point_constraints=revision_details(narrative, ledger),
                         )

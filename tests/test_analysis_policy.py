@@ -107,7 +107,9 @@ def test_model_cannot_substitute_another_scenario_horizon():
 
 def test_schema_enforces_exact_source_quotes_and_separates_reasoning():
     schema = decision_schema(LEDGER, {}, planning_policy(AS_OF))
-    assert schema["$defs"]["SourceMessage"]["properties"]["text"]["enum"] == [LEDGER[0]["quote"]]
+    assert schema["$defs"]["SourceMessage"]["properties"]["message_id"]["enum"]
+    assert "text" not in schema["$defs"]["SourceMessage"]["properties"]
+    assert "kind" not in schema["$defs"]["SourceMessage"]["properties"]
     assert schema["$defs"]["NarrativePoint"]["properties"]["kind"]["enum"] == ["interpretation", "hypothesis"]
 
 
@@ -190,3 +192,13 @@ def test_past_meeting_cannot_be_a_future_event_or_change_signal():
     value = memo()
     value.scenarios[0].change_signals = ["Публикация решения от 23 октября 2026 года."]
     assert any(i.startswith("past_date_in_future_signal") for i in check(value))
+
+
+def test_negated_cost_shock_is_not_a_positive_forecast_and_does_not_excuse_a_contrast():
+    assert not sentence_issues(
+        "Пауза сама по себе не удорожает стоимость фондирования.", bank=True, pause=True
+    )
+    assert not sentence_issues("Пауза не означает рост стоимости кредита.", bank=False, pause=True)
+    assert "pause_is_not_a_new_cost_shock" in sentence_issues(
+        "Пауза не означает рост стоимости кредита, однако фондирование подорожает.", bank=False, pause=True
+    )

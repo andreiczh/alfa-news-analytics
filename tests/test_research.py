@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -104,7 +103,10 @@ class ResearchGateway:
             return json.dumps(value, ensure_ascii=False)
         if stage == "research_narrative":
             ledger = payload["evidence_ledger"]
-            anchor = next((a for a in ledger if a["source_id"] == "input_news"), ledger[0])
+            anchor = next(
+                (a for a in ledger if a["source_id"] == payload.get("selected_news_source_id")),
+                next((a for a in ledger if a["source_id"] == "input_news"), ledger[0]),
+            )
             fields = payload["company"].get("confirmed_context", {}).get("fields", {})
             context_anchor = next(
                 (a for a in ledger if any("_context_" + key + "_" in a["source_id"] for key in fields)), None
@@ -126,12 +128,15 @@ class ResearchGateway:
                     "main_conclusion": point,
                     "situation": [
                         {
-                            **point,
-                            "kind": "source_forecast"
-                            if re.search(r"прогноз|ожида|предполага|вероятност", anchor["quote"], re.I)
-                            else "source_fact",
-                            "text": anchor["quote"],
-                            "anchor_ids": [anchor["anchor_id"]],
+                            "message_id": next(
+                                (
+                                    o["message_id"]
+                                    for o in payload["source_messages"]
+                                    if o["anchor_id"] == anchor["anchor_id"]
+                                ),
+                                payload["source_messages"][0]["message_id"],
+                            ),
+                            "condition": point["condition"],
                         }
                     ],
                     "drivers": [point],

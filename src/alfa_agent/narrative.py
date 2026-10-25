@@ -51,8 +51,76 @@ class DecisionNarrative(Strict):
     context_keys: list[str] = Field(default_factory=list, max_length=8)
 
 
+class SourceMessage(Strict):
+    message_id: str = Field(min_length=2, max_length=80)
+    condition: str = Field(min_length=5, max_length=400)
+
+
+class NarrativeSelection(DecisionNarrative):
+    """The LLM selects IDs; it cannot write or relabel source messages."""
+
+    situation: list[SourceMessage] = Field(min_length=1, max_length=3)
+
+
+def source_message_options(ledger):
+    result = []
+    external = [a for a in ledger if a["kind"] in {"public_page", "user_news", "bank_claim", "bank_excerpt"}]
+    for anchor in external or ledger:
+        if not anchor.get("excerpt_complete", True):
+            continue
+        quote = anchor["quote"]
+        boundaries = [0, *[m.end() for m in re.finditer(r"(?<!\d)[.!?](?!\d)(?=\s|$)", quote)], len(quote)]
+        passages = [quote[start:end].strip() for start, end in zip(boundaries, boundaries[1:])]
+        passages = [text for text in passages if 30 <= len(text) <= 700]
+        if not passages and 15 <= len(quote) <= 700:
+            passages = [quote]
+        for index, text in enumerate(passages[:3]):
+            forecast = anchor.get("claim_type") in {"FORECAST", "SCENARIO"} or bool(
+                re.search(
+                    r"прогноз\w*|ожида\w*|предполага\w*|может\s+(?:сниз|выраст|повыс|сохран)|вероятност",
+                    text,
+                    re.I,
+                )
+            )
+            kind = (
+                "source_forecast"
+                if forecast
+                else "source_assessment"
+                if anchor.get("claim_type") in {"ASSESSMENT", "RECOMMENDATION"}
+                else "source_fact"
+            )
+            result.append(
+                {
+                    "message_id": f"msg_{anchor['anchor_id']}_{index}",
+                    "anchor_id": anchor["anchor_id"],
+                    "text": text,
+                    "kind": kind,
+                    "published_at": anchor.get("published_at"),
+                }
+            )
+    return result[:48]
+
+
+def bind_source_messages(selection, options):
+    choices = {x["message_id"]: x for x in options}
+    situation = []
+    for selected in selection.situation:
+        if selected.message_id not in choices:
+            raise ValueError("unknown_source_message")
+        option = choices[selected.message_id]
+        situation.append(
+            {
+                "kind": option["kind"],
+                "text": option["text"],
+                "anchor_ids": [option["anchor_id"]],
+                "condition": selected.condition,
+            }
+        )
+    return DecisionNarrative.model_validate({**selection.model_dump(mode="json"), "situation": situation})
+
+
 def decision_schema(ledger, confirmed_context, policy=None):
-    schema = DecisionNarrative.model_json_schema()
+    schema = NarrativeSelection.model_json_schema() if policy else DecisionNarrative.model_json_schema()
     allowed = [a["anchor_id"] for a in ledger]
     for name in ("NarrativePoint", "MainConclusion", "ForecastScenario"):
         schema["$defs"][name]["properties"]["anchor_ids"]["items"] = {"type": "string", "enum": allowed}
@@ -68,18 +136,9 @@ def decision_schema(ledger, confirmed_context, policy=None):
     schema["properties"]["context_keys"]["maxItems"] = min(8, len(available))
     if policy:
         schema["$defs"]["ForecastScenario"]["properties"]["horizon"]["enum"] = [policy["horizon"]]
-        import copy
-
-        source_message = copy.deepcopy(schema["$defs"]["NarrativePoint"])
-        source_message["properties"]["kind"]["enum"] = ["source_fact", "source_forecast", "source_assessment"]
-        source_message["properties"]["anchor_ids"]["maxItems"] = 1
-        source_message["properties"]["text"]["enum"] = list(
-            dict.fromkeys(
-                a["quote"] for a in ledger if a.get("excerpt_complete", True) and 15 <= len(a["quote"]) <= 700
-            )
-        )
-        schema["$defs"]["SourceMessage"] = source_message
-        schema["properties"]["situation"]["items"] = {"$ref": "#/$defs/SourceMessage"}
+        schema["$defs"]["SourceMessage"]["properties"]["message_id"]["enum"] = [
+            o["message_id"] for o in source_message_options(ledger)
+        ]
         # These sections contain our reasoning. Enforce this in the provider schema
         # as well as in the server policy; a prompt alone is not a type boundary.
         schema["$defs"]["NarrativePoint"]["properties"]["kind"]["enum"] = ["interpretation", "hypothesis"]

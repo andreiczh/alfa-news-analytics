@@ -158,3 +158,46 @@ def test_confirmed_industry_field_is_used_even_without_an_uploaded_document():
         }
     )
     assert context["industry"] == "Розничная торговля"
+
+
+def test_source_messages_are_host_bound_and_keep_forecast_modality():
+    from alfa_agent.narrative import source_message_options, NarrativeSelection, bind_source_messages
+
+    ledger = [
+        {
+            **LEDGER[0],
+            "quote": "Банк России сохранил ключевую ставку. Мы ожидаем снижения инфляции в дальнейшем.",
+        }
+    ]
+    options = source_message_options(ledger)
+    assert {o["kind"] for o in options} == {"source_fact", "source_forecast"}
+    value = memo().model_dump()
+    option = next(o for o in options if o["kind"] == "source_forecast")
+    value["situation"] = [
+        {"message_id": option["message_id"], "condition": "Историческое ожидание автора, исход не проверен."}
+    ]
+    bound = bind_source_messages(NarrativeSelection.model_validate(value), options)
+    assert bound.situation[0].text == option["text"]
+    assert bound.situation[0].kind == "source_forecast"
+    value["situation"][0]["message_id"] = "invented"
+    with pytest.raises(ValueError, match="unknown_source_message"):
+        bind_source_messages(NarrativeSelection.model_validate(value), options)
+
+
+def test_deposit_beta_and_bond_price_stability_are_not_time_or_liquidity_proofs():
+    from alfa_agent.analysis_policy import sentence_issues
+
+    assert "deposit_beta_is_pass_through_not_a_time_lag" in sentence_issues(
+        "Депозитная бета определяет скорость удорожания пассивов.", bank=True, pause=False
+    )
+    assert "price_stability_does_not_prove_liquidity" in sentence_issues(
+        "Стабильность цен даёт ликвидный инструмент для размещения.", bank=True, pause=False
+    )
+    assert not sentence_issues(
+        "Депозитная бета отражает степень переноса изменения ставки; лаг переоценки проверяется отдельно.",
+        bank=True,
+        pause=False,
+    )
+    assert not sentence_issues(
+        "Стабильность цен не доказывает ликвидность облигации.", bank=True, pause=False
+    )

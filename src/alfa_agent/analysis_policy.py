@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import re
 from zoneinfo import ZoneInfo
 
-POLICY_VERSION = "2026-10-25-v6"
+POLICY_VERSION = "2026-10-25-v6.1"
 
 
 RELATIVE_CALENDAR = re.compile(
@@ -66,9 +66,33 @@ def planning_policy(as_of: str, days: int = 30):
     }
 
 
+def asserts_new_cost(text):
+    for match in NEW_COST.finditer(text):
+        if re.search(r"\bне\s+(?:удорож|дорож|подорож|станов\w*\s+дороже)", match[0], re.I):
+            continue
+        prefix = re.split(r"\b(?:но|однако|зато)\b", text[: match.start()], flags=re.I)[-1][-80:]
+        if re.search(r"\bне\s+(?:означа|вызыва|вед[её]т|привод|созда[её]т)", prefix, re.I):
+            continue
+        return True
+    return False
+
+
 def sentence_issues(text: str, *, bank: bool, pause: bool, fixed_debt: bool = False):
     issues = []
     for sentence in re.split(r"(?<!\d)[.!?](?!\d)|[;\n]", text):
+        if re.search(
+            r"депозитн\w*\s+бет\w*\s+(?:определя\w*|показыва\w*|отража\w*)\s+(?:скорост|срок|быстрот)",
+            sentence,
+            re.I,
+        ):
+            issues.append("deposit_beta_is_pass_through_not_a_time_lag")
+        if (
+            re.search(r"стабил\w*\s+цен|цен\w*\s+стабил", sentence, re.I)
+            and re.search(r"ликвидн", sentence, re.I)
+            and re.search(r"да[её]т|обеспеч|доказыва|подтвержда|гарантир", sentence, re.I)
+            and not re.search(r"не\s+(?:да[её]т|обеспеч|доказыва|подтвержда|гарантир)", sentence, re.I)
+        ):
+            issues.append("price_stability_does_not_prove_liquidity")
         # Negated inability to establish the sign is valid, not a directional forecast.
         # A disclaimer elsewhere must not excuse an opposite categorical promise.
         unknown = re.search(r"не\s+гарантир", sentence, re.I) and not re.search(
@@ -81,7 +105,7 @@ def sentence_issues(text: str, *, bank: bool, pause: bool, fixed_debt: bool = Fa
                 issues.append("bank_net_effect_requires_balance_model")
             elif not re.search(r"актив\w*|пассив\w*|обязательств\w*|бета|гэп|переоцен", sentence, re.I):
                 issues.append("bank_net_effect_condition_needs_balance_channel")
-        if pause and NEW_COST.search(sentence) and not unknown:
+        if pause and asserts_new_cost(sentence) and not unknown:
             if not (SEPARATE_CAUSE.search(sentence) and CONDITIONAL.search(sentence)):
                 issues.append("pause_is_not_a_new_cost_shock")
         if fixed_debt and re.search(
