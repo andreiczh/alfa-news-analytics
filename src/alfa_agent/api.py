@@ -458,6 +458,10 @@ def create_app(settings=None):
         return {
             "status": "ok",
             "version": __version__,
+            "runtime_commit": os.environ.get("RENDER_GIT_COMMIT") or None,
+            "analysis_policy_version": __import__(
+                "alfa_agent.analysis_policy", fromlist=["POLICY_VERSION"]
+            ).POLICY_VERSION,
             "mode": "live",
             "model": settings.model,
             "research_model": settings.research_model,
