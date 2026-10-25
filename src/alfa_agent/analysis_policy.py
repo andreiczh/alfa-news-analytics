@@ -105,6 +105,21 @@ def sentence_issues(text: str, *, bank: bool, pause: bool, fixed_debt: bool = Fa
                 issues.append("bank_net_effect_requires_balance_model")
             elif not re.search(r"актив\w*|пассив\w*|обязательств\w*|бета|гэп|переоцен", sentence, re.I):
                 issues.append("bank_net_effect_condition_needs_balance_channel")
+        if not bank and NET_METRIC.search(sentence) and DIRECTION.search(sentence) and not unknown:
+            if not (
+                CONDITIONAL.search(sentence)
+                and re.search(r"может|могут|риск|потенциальн", sentence, re.I)
+                and re.search(
+                    r"цен\w*|затрат\w*|себестоим\w*|выручк\w*|объ[её]м\w*|микс|ассортимент", sentence, re.I
+                )
+            ):
+                issues.append("corporate_net_effect_requires_operating_model")
+        if re.search(
+            r"без\s+(?:потребност\w*|необходимост\w*)\s+в\s+(?:нов\w*\s+)?финансирован|не\s+потребуется\s+(?:нов\w*\s+)?финансирован|кассов\w*\s+разрыв\w*\s+не\s+будет|буфер\w*\s+ликвидност\w*\s+достаточен",
+            sentence,
+            re.I,
+        ):
+            issues.append("cash_sufficiency_requires_company_cash_flow_model")
         if pause and asserts_new_cost(sentence) and not unknown:
             if not (SEPARATE_CAUSE.search(sentence) and CONDITIONAL.search(sentence)):
                 issues.append("pause_is_not_a_new_cost_shock")
@@ -215,6 +230,10 @@ def policy_issues(value, ledger, *, as_of, days=30, bank=False, profile=None):
             issues.append(f"scenario_horizon_must_match_policy:scenario[{index}]")
         if TITLE_TIME.search(scenario.title):
             issues.append(f"scenario_title_must_not_extend_horizon:scenario[{index}]")
+        if not CONDITIONAL.search(scenario.outcome) or not re.search(
+            r"может|могут|возмож|провер|оцен|риск", scenario.outcome, re.I
+        ):
+            issues.append(f"scenario_outcome_requires_explicit_conditional_check:scenario[{index}]")
         text = " ".join(
             [
                 scenario.title,

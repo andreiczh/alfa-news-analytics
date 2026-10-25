@@ -201,3 +201,25 @@ def test_deposit_beta_and_bond_price_stability_are_not_time_or_liquidity_proofs(
     assert not sentence_issues(
         "Стабильность цен не доказывает ликвидность облигации.", bank=True, pause=False
     )
+
+
+def test_a_macro_scenario_cannot_guarantee_cash_sufficiency_or_company_profit():
+    from alfa_agent.analysis_policy import sentence_issues
+
+    assert "cash_sufficiency_requires_company_cash_flow_model" in sentence_issues(
+        "Производственный план проходит без потребности в новом финансировании.", bank=False, pause=False
+    )
+    assert "corporate_net_effect_requires_operating_model" in sentence_issues(
+        "Маржа розничной сети сохранится при стабильной ставке.", bank=False, pause=False
+    )
+    assert not sentence_issues(
+        "Если затраты растут быстрее отпускных цен, маржа может снизиться.", bank=False, pause=False
+    )
+    value = memo()
+    value.scenarios[
+        0
+    ].outcome = "Производственный план выполняется и потребность в оборотном капитале стабильна."
+    assert any(
+        x.startswith("scenario_outcome_requires_explicit_conditional_check")
+        for x in validate_narrative(value, LEDGER, {}, as_of=AS_OF)
+    )
