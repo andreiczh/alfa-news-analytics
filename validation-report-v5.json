@@ -1,9 +1,9 @@
 {
   "version": "0.5.0",
   "release_date": "2026-10-25",
-  "checked_at": "2026-10-25T03:23:23.887331+03:00",
+  "checked_at": "2026-10-25T11:18:08.568490+03:00",
   "tests": {
-    "pytest_passed": 155,
+    "pytest_passed": 165,
     "ruff": "passed",
     "javascript_syntax": "both files passed",
     "frozen_install": "passed"
@@ -72,7 +72,23 @@
       390,
       320
     ],
-    "scope": "Development acceptance; final cloud checks are recorded separately. The accepted local result was revalidated after stricter measured-number rules."
+    "scope": "Development acceptance; final cloud checks are recorded separately. The accepted local result was revalidated after stricter measured-number rules.",
+    "final_code": {
+      "checks": [
+        "final release code runs with existing reviewed profile and report",
+        "accepted narrative still renders after additive schema and restart",
+        "changed role hides old overview forecast and marks retained CFO report",
+        "manual context edit increments revision and preserves test provenance",
+        "edited context marks old report without rewriting it or paid rerun",
+        "final retained memo fits 390px",
+        "final retained memo fits 320px"
+      ],
+      "errors": [],
+      "version": "0.5.0",
+      "context_revision": 3,
+      "retained_run_id": "research_b2b21b694ec443ad86ca",
+      "additional_paid_calls": 0
+    }
   },
   "live_context": {
     "turn_id": "context_131f58b2b7094cc7aead",
@@ -81,21 +97,6 @@
     "field_count": 4,
     "draft_did_not_auto_save": true
   },
-  "live_research": {
-    "run_id": "research_b2b21b694ec443ad86ca",
-    "status": "PARTIAL",
-    "llm_calls": 5,
-    "tools": 2,
-    "replans": 1,
-    "forecast_status": "conditional_scenarios",
-    "scenario_count": 2,
-    "context_keys": [
-      "industry",
-      "goals",
-      "priorities",
-      "tracked_competitors"
-    ]
-  },
   "verification": {
     "human_verified": false,
     "scope": "Source/quote/number/unit/context contracts plus separate allowed-model consistency check; not independent source truth",
@@ -103,7 +104,9 @@
       "f3 сформулирован как общий шаблон про спрос без прямой опоры на банковскую специфику; связь с задачей ослаблена, но не искажает вывод",
       "Ключевые источники OCR (ocr_pending_review); числовые данные из таблиц не использованы, что корректно, но требует контроля качества цитат"
     ],
-    "retained_output_passes_stricter_numeric_rules": true
+    "retained_output_passes_stricter_numeric_rules": true,
+    "retained_output_passes_calendar_rules": true,
+    "retained_output_passes_field_grounding_rules": true
   },
   "iterations": [
     {
@@ -120,13 +123,66 @@
       "run_id": "research_b2b21b694ec443ad86ca",
       "published": true,
       "result": "one addressed narrative revision, passed automatic checks, conditional scenarios"
+    },
+    {
+      "run_id": "research_ad392834067a4f1b9941",
+      "published": false,
+      "result": "calendar formats and uncited local dates blocked cloud narrative; fixed calendar normalization, exact date checks and addressed scenario constraints"
+    },
+    {
+      "run_id": "research_ffd6c24ee9134d84b7da",
+      "published": false,
+      "llm_calls": 6,
+      "tools": 3,
+      "replans": 1,
+      "result": "narrative contract passed; verifier input exceeded 60000-character gateway limit; full source duplication removed without dropping cited evidence"
+    },
+    {
+      "run_id": "research_f6577cca02274fa7af9e",
+      "published": true,
+      "accepted_for_final_release": false,
+      "llm_calls": 8,
+      "tools": 6,
+      "replans": 2,
+      "result": "automatic source/number/semantic checks and browser path passed; human review found ungrounded context-key list, exclusive signal timing and inconsistent scenario title; tightened field-level grounding and time-consistency prompts"
+    },
+    {
+      "run_id": "research_182dc330bf3647f3be62",
+      "published": true,
+      "accepted_for_final_release": false,
+      "llm_calls": 6,
+      "tools": 3,
+      "replans": 1,
+      "result": "automatic checks and browser path passed; human financial review rejected a mixed source-fact conclusion, pause/new-cost conflation and ungrounded bank-margin scenario; deterministic contracts added"
+    },
+    {
+      "run_id": "research_c4a8e93f1ef447f3bc7d",
+      "published": false,
+      "llm_calls": 6,
+      "tools": 3,
+      "replans": 2,
+      "result": "financial contracts held; unrelated corporate-product news entered selected-event context, causing uncited rate figure in a product paragraph; added strict topic filtering and exact unsupported-number feedback"
+    },
+    {
+      "run_id": "research_986fc23a08fa426c9154",
+      "published": true,
+      "accepted_for_final_release": true,
+      "llm_calls": 6,
+      "tools": 3,
+      "replans": 0,
+      "result": "source-focused narrative passed contracts, separate semantic check, browser/export/cache/mobile checks; editorial limits retained"
     }
   ],
   "render": {
     "url": "https://alfa-business-pulse.onrender.com",
     "service_id": "srv-dbdphesipgvc739mcm80",
-    "status": "pending_release",
-    "previous_version": "0.4.0"
+    "status": "live_accepted_for_demo",
+    "previous_version": "0.4.0",
+    "initial_release_commit": "8e245d6ba6f52f87447531142599c2b01390973e",
+    "intermediate_commit": "f38a8d3b9bcba6d86b9dc675a566b2b6e57a58a0",
+    "commit": "47654b09f6036f17cd18d1bca8c5e525789af8f8",
+    "deploy_id": "dep-dberg2dg1s2s73digl8g",
+    "live_at": "2026-10-25T08:05:39.194414Z"
   },
   "source_packet": {
     "path": "docs/source-materials/product-revisions-2026-10-25.txt",
@@ -139,5 +195,333 @@
     "No real internal Alfa-Bank figures or verified employment",
     "Free hosting is ephemeral",
     "Docker build still not verified"
-  ]
+  ],
+  "cloud_browser": {
+    "status": "passed_with_declared_analysis_limits",
+    "setup": {
+      "checks": [
+        "final cloud API version 0.5.0",
+        "CFO Alpha-Bank login and one global role",
+        "live AI proposal leaves profile unchanged before confirmation",
+        "reviewed context saved with version and synthetic provenance",
+        "personalized bank library uses current CFO and confirmed context",
+        "CMO changes bank relevance and focus",
+        "global role persists after browser reload",
+        "cold public news collection succeeded through real Render network",
+        "publisher dates and seven-day freshness checked",
+        "each news item has why, conditional impact and applicability",
+        "CFO and CMO news scores and decision angles differ",
+        "all four sections fit 390px",
+        "all four sections fit 320px"
+      ],
+      "errors": [],
+      "company_id": "company_f8019e6f2bb249958545",
+      "turn_id": "context_69c25952f1dd49bfb2f8",
+      "context_fields": [
+        "industry",
+        "goals",
+        "priorities",
+        "tracked_competitors",
+        "other_context"
+      ],
+      "candidate_count": 204,
+      "selected_count": 20,
+      "read_count": 2,
+      "sources": [
+        {
+          "name": "Пресс-релизы Банка России",
+          "url": "https://www.cbr.ru/rss/RssPress",
+          "status": "ok",
+          "count": 14
+        },
+        {
+          "name": "Новости Банка России",
+          "url": "https://www.cbr.ru/rss/eventrss",
+          "status": "ok",
+          "count": 100
+        },
+        {
+          "name": "Новое на сайте Банка России",
+          "url": "https://www.cbr.ru/rss/RssNews",
+          "status": "ok",
+          "count": 100
+        },
+        {
+          "name": "РБК",
+          "status": "unavailable",
+          "error": "public_page_unavailable",
+          "count": 0
+        },
+        {
+          "name": "Новостной поиск Bing",
+          "status": "unavailable",
+          "error": "public_page_unavailable",
+          "count": 0
+        },
+        {
+          "name": "Интерфакс — резервная лента",
+          "url": "https://www.interfax.ru/rss.asp",
+          "status": "ok",
+          "count": 25
+        }
+      ],
+      "selected_news_id": "news_42b35a14adfef2fecdd00601"
+    },
+    "isolation": {
+      "checks": [
+        "identical employee/company/role input creates separate owned workspace",
+        "new workspace has no other employee reviewed context",
+        "other employee profile, news, bank recommendations and report are inaccessible",
+        "CEO role changes content without granting company access"
+      ],
+      "errors": [],
+      "statuses": {
+        "/api/companies/company_f8019e6f2bb249958545/profile": 403,
+        "/api/companies/company_f8019e6f2bb249958545/news": 403,
+        "/api/library?company_id=company_f8019e6f2bb249958545": 403,
+        "/api/research/research_ad392834067a4f1b9941": 404
+      },
+      "other_role": "ceo"
+    },
+    "setup_commit": "f38a8d3b9bcba6d86b9dc675a566b2b6e57a58a0",
+    "unchanged_on_final_commit": [
+      "company_dialogue.py",
+      "personalization.py",
+      "workspace.py",
+      "api.py",
+      "news_ranking.py",
+      "bank_library.py",
+      "all static UI assets"
+    ],
+    "unchanged_on_final_commit_from_setup": "Core profile/auth/dialogue/library/UI paths unchanged from f38a8d3; news.py changed only for topic-scoped research, covered by regression and final live run.",
+    "news_change_scope": "Only for_research adds strict topic filtering for selected-event runs; collector, news listing and ranking unchanged.",
+    "research": {
+      "checks": [
+        "selected fresh publication grounds live coherent CFO research on final cloud code",
+        "confirmed context has cited evidence in the memo",
+        "forecast is conditional with alternatives or explicitly insufficient",
+        "evidence units and separate semantic verification passed",
+        "structured analytical memo rendered",
+        "Markdown export contains scenarios and cited argument",
+        "overview reuses current verified scenario without another paid call",
+        "memo fits 390px",
+        "memo fits 320px"
+      ],
+      "errors": [],
+      "run_id": "research_986fc23a08fa426c9154",
+      "status": "PARTIAL",
+      "llm_calls": 6,
+      "tools": 3,
+      "replans": 0,
+      "forecast_status": "conditional_scenarios",
+      "scenario_count": 2,
+      "context_keys": [
+        "industry",
+        "goals",
+        "priorities",
+        "tracked_competitors"
+      ]
+    },
+    "restoration": {
+      "checks": [
+        "signed session restores its own empty company after Free restart",
+        "previously reviewed synthetic context explicitly restored through manual fields API; no new AI turn claimed",
+        "final deploy collects fresh news again through native Render network"
+      ],
+      "errors": [],
+      "company_id": "company_f8019e6f2bb249958545",
+      "context_revision": 1,
+      "candidate_count": 215,
+      "selected_count": 20,
+      "read_count": 3,
+      "sources": [
+        {
+          "name": "Пресс-релизы Банка России",
+          "url": "https://www.cbr.ru/rss/RssPress",
+          "status": "ok",
+          "count": 14
+        },
+        {
+          "name": "Новости Банка России",
+          "url": "https://www.cbr.ru/rss/eventrss",
+          "status": "ok",
+          "count": 100
+        },
+        {
+          "name": "Новое на сайте Банка России",
+          "url": "https://www.cbr.ru/rss/RssNews",
+          "status": "ok",
+          "count": 100
+        },
+        {
+          "name": "РБК",
+          "status": "unavailable",
+          "error": "public_page_unavailable",
+          "count": 0
+        },
+        {
+          "name": "Новостной поиск Bing",
+          "url": "https://www.bing.com/news/search?format=rss&setlang=ru-RU&q=%22%D0%90%D0%BB%D1%8C%D1%84%D0%B0-%D0%91%D0%B0%D0%BD%D0%BA%22",
+          "status": "ok",
+          "count": 11
+        },
+        {
+          "name": "Интерфакс — резервная лента",
+          "url": "https://www.interfax.ru/rss.asp",
+          "status": "ok",
+          "count": 25
+        }
+      ],
+      "selected_news_id": "news_42b35a14adfef2fecdd00601"
+    },
+    "assertions_passed": 29,
+    "final_commit": "47654b09f6036f17cd18d1bca8c5e525789af8f8",
+    "javascript_errors": []
+  },
+  "qa_network": {
+    "local_dns_connection_problem": "resolved after user reconnected VPN; no TLS verification disabled",
+    "render_collectors": "native HTTPS networking, no mock feed or replaced publisher response",
+    "free_restart": "QA context explicitly restored from already reviewed synthetic fields after each release restart; original AI turn not re-created or claimed as a new call"
+  },
+  "independent_model_probe": {
+    "reviewed_run_id": "research_182dc330bf3647f3be62",
+    "model": "qwen/qwen3.6-35b-a3b",
+    "approved": true,
+    "issues": [],
+    "scope_note": "Черновая записка соответствует заданию, источникам и правилам проверки. Решение ЦБ от 23.10.2026 отнесено к source_fact, а влияние на Альфа-Банк — к условным сценариям. Внутренние приоритеты компании отделены от внешних данных. Финансовые механизмы описаны корректно: сохранение ставки не означает автоматического удешевления, маржа зависит от неизвестного гэпа и депозитной беты. Даты заседаний и прогнозы банка отнесены к их временным горизонтам и не подменены актуальным решением. Рекомендации для CFO направлены на сбор недостающих данных (чувствительность, ставки, ликвидность) и не выдают себя过",
+    "decision": "not adopted as a replacement: second model also approved the disputed draft; code constraints and human acceptance remain necessary"
+  },
+  "native_live_research": {
+    "run_id": "research_b2b21b694ec443ad86ca",
+    "status": "PARTIAL",
+    "llm_calls": 5,
+    "tools": 2,
+    "replans": 1,
+    "forecast_status": "conditional_scenarios",
+    "scenario_count": 2,
+    "context_keys": [
+      "industry",
+      "goals",
+      "priorities",
+      "tracked_competitors"
+    ]
+  },
+  "live_research": {
+    "run_id": "research_986fc23a08fa426c9154",
+    "status": "PARTIAL",
+    "llm_calls": 6,
+    "tool_calls": 3,
+    "replans": 0,
+    "forecast_status": "conditional_scenarios",
+    "scenario_count": 2,
+    "context_keys": [
+      "industry",
+      "goals",
+      "priorities",
+      "tracked_competitors"
+    ],
+    "source": "selected fresh publisher article",
+    "accepted_for_functional_demo": true
+  },
+  "final_verification": {
+    "passed": true,
+    "quote_and_number_checks": true,
+    "semantic_check": true,
+    "human_verified": false,
+    "scope": "Проверены цитаты: пресс-релиз ЦБ от 23.10.2026 (пауза 14,00%, дата декабрьского заседания), мониторинг ставок вкладов от 21.10.2026 (индикативный, датирован до решения), прогноз Альфа-Банка от 11.09.2026 (сохранён как датированный bank_view, не выдан за свершившийся факт), внутренний контекст компании (приоритеты, цель по МСБ, конкуренты) обозначен как сведения клиента. Ключевые правила соблюдены: пауза не названа повышением; лаг переоценки — только условно; отсутствие гэпа, беты и структуры баланса честно отражено в missing_data/forecast_limit; знак эффекта для банка не заявлен без экспозиции",
+    "warnings": [
+      "В finding f4 поле anchor_id пустое — допустимо, но лучше привязать цитату к a5 для связности.",
+      "В базовом сценарии название («до конца года») шире указанного горизонта («до декабрьского заседания»); outcome корректно ограничен плановым горизонтом, но заголовок можно согласовать с horizon.",
+      "Драйвер «верхняя граница стоимости денег» — интерпретация, а не факт источника; модальность в тексте выдержана, критичного противоречия нет."
+    ]
+  },
+  "developer_acceptance": {
+    "scope": "functional demo and source/financial sanity checks; no independent bank expert review",
+    "accepted": true,
+    "human_verified": false,
+    "known_wording_limits": [
+      "Base scenario heading says year-end while horizon says December meeting; displayed verifier warning retained",
+      "A recommendation says monitoring was a day before the meeting; actual captions show 21 and 23 October. Relative-time prose needs editing."
+    ],
+    "financial_scope": "No bank margin/profit sign or quantitative probability confirmed; internal balance data unavailable."
+  },
+  "runtime_manifest": {
+    "files": {
+      ".dockerignore": "08c746a0445f4a820c1e67901bd13f917cc9d30cd78a6ca7da73692eab25a304",
+      "Dockerfile": "dcbdee593353d3d2d217765079300bf84fb8cfa1d82d774fac37748c29920b01",
+      "data/bank_library.json": "9a4ebe2f38a880ea48b16d6a3867e49a483ba518ac0b920dcb8b94ad3cc57214",
+      "data/case/df_Fid_Uid_link_hack.csv": "3d9c718e2a87304f48bbc7447607116bb8e4bd61dded70b0a1d0558f086a1b58",
+      "data/case/df_Uid_data_hack.csv": "cb48983806ce7ca0ae045a40c9627ccbe47cc72bfb54058db04df2386da4a983",
+      "data/case/df_Uid_payment_hack.csv": "30095f75bead1a1dac0d7232b0da09a326b7ef643ee3b77b36ad3b4458a1cab3",
+      "data/demo_bundle.json": "c667a89a81d374019762e40fc708188ad2d362c46e2a33b3099d87fbda06d0fc",
+      "data/test_documents/company-finance.txt": "b810d0dfd631e5549f30a4c7772e948ef59753db6df0bd5a7fa36369b2dede9c",
+      "data/test_documents/company-strategy-scan.pdf": "0ce789a8b9d1bb3ae74f6ec1ad5bb113ea3bf5b715d79fa70bc91d10cba2f234",
+      "pyproject.toml": "674c0c5b6da6a51e8047fdaf4df913e178fe9020342ad3c266ee593c24ee8d7b",
+      "requirements.lock": "de3761a4a3898fd79e2c50fabebf5d5c14660ac5091e0e76ae569b6eca7f137f",
+      "src/alfa_agent/__init__.py": "2c12b8ea17aeb6f9f72a6b02aca218bbc4508a46df9e365a8f6c45ad769e0b34",
+      "src/alfa_agent/__main__.py": "6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279",
+      "src/alfa_agent/access.py": "a4fc55e3a85de589df34370f8d94dd95e44924abbc90c054695b3c36f8e8aa4f",
+      "src/alfa_agent/api.py": "f27eaa563b1ab8266515b263e270b96d35fe449d24fdbc1a8fe11c412bfc07e9",
+      "src/alfa_agent/assembly.py": "43b0ec91eb4882e0182493dd861a273751b56177a4a99cf8b0e7025775a0af6c",
+      "src/alfa_agent/bank_library.py": "ed0f1c82bc6e698e0b43bacad6f54fd70307421cd10e6698dd6999188b1c0144",
+      "src/alfa_agent/bootstrap.py": "cafaaff3031e4d825a0e06e688b759eaddfad7c7804044347fe41a82686115e3",
+      "src/alfa_agent/case_data.py": "ec562ba1c1a6c78da968314dee449258485cecaa4340d5f7d8583d02fbe12877",
+      "src/alfa_agent/cli.py": "7714bfdc4fdae71a0829f68a6af76521ef84d19131b6e32cf5e6057401c8f21a",
+      "src/alfa_agent/company_dialogue.py": "7f79ff315c4a4880938755d67484ed920a36ff6d2bba1364996e668c17bc1bb6",
+      "src/alfa_agent/config/defaults.json": "0e62e9225758542d9f73ebe6814871b077515dafaa943584fe0e3055d8aec7f6",
+      "src/alfa_agent/config/models.json": "fa7fcae4bf1929589f5327c464465295d703893f36d5a5d6b7b8150a23adcdab",
+      "src/alfa_agent/corpus.py": "88d2b795f0a23236199f39aadf84434a5906620d8bde19083484c8b7fe3b15b2",
+      "src/alfa_agent/decision_support.py": "b6d66d0f51bc646c6a5adc3f7b10aebb0b95e7fdb53d5730baf61860f2ae06dd",
+      "src/alfa_agent/desktop.py": "db0fd28a300e3f80df36ba88b094c2f328aa60cf9ae325f9eb00f2e189b88361",
+      "src/alfa_agent/document_parser.py": "6c63612c07131d8c766ab2894bef6156bd3f90f436980824bf84cce7c2f2fc11",
+      "src/alfa_agent/domain.py": "37fe60c753c81b4a7b4dceb95066644d2fbe392aa171e350ba65ea0397805c22",
+      "src/alfa_agent/engine.py": "db7b4e5dee842c1a76a0dd6af1da69d4abc84f3c03db07c4032745ce6122eb5b",
+      "src/alfa_agent/gateway.py": "547c04b575cbff2fc23685a80e6161fb603b85cb6aae84e7f5ea2afe8b05f42d",
+      "src/alfa_agent/identity.py": "ac64aafcbc4cd8b4438b737b636c7f2f37c23636471a22b1729c4ab43865ef0f",
+      "src/alfa_agent/ingestion.py": "4b4e4723f29f344db3bea0b0bfeef61470d0bd1cce0fbc63d264a9e89f2ae0c5",
+      "src/alfa_agent/model_outputs.py": "e64988b6b3509e35df46eec29f19572fe34279123301a56844a92d1489ee59bf",
+      "src/alfa_agent/narrative.py": "824fe7477e342c56cba7ce960f8c40192d8f32fc1b863ab2fa1a776cb019a79c",
+      "src/alfa_agent/news.py": "8ed02dd72512ccfcff66d661be2f4703ad7dbf9b728723352cad6c8446d25ce0",
+      "src/alfa_agent/news_ranking.py": "4356c91708d64b453477eaedde757b562a699e2856dcdb4169b4220f4367084e",
+      "src/alfa_agent/news_sources.py": "8eb0748e915f10d1c33ad9b8a29af303972961b0a81f73497f98a5056dfa6f1f",
+      "src/alfa_agent/personalization.py": "ff0c6ca169f22ea51bc319f5615bf5ba662f41978393f83040410c775cd44702",
+      "src/alfa_agent/prompts/analyst.md": "937f667fad3ad27cf93b89f9af061c05f14432963d353b5e2bdb3223f5e72684",
+      "src/alfa_agent/prompts/bank_extract.md": "cf8f6b82396c6a996bcf91860fad24d570ebb5f33e277f348728f406ddbde213",
+      "src/alfa_agent/prompts/common_system.md": "7fdaee8044f960e57cfd48c0f3f4f890065ffd67bd076f4c8486437f64852cfd",
+      "src/alfa_agent/prompts/company_profile.md": "444ec509dee6aa5c0c6b8f25b974447eb12d3c9f7541cc81b09ec9fed7a9a8cc",
+      "src/alfa_agent/prompts/context_interview.md": "b556a0dae392efd838c2b0f1c88177808fe5892af2dbb469969fff670b797a7c",
+      "src/alfa_agent/prompts/controller.md": "3ac79f1c565e9ca4d307001e4dac5266311167c3d1c5045712ebf7f52ee302f5",
+      "src/alfa_agent/prompts/document_ocr.md": "ac1e19e28385a75883900f36a975e8639945c797faf9a18df0f166a9a80b53cc",
+      "src/alfa_agent/prompts/profile_extractor.md": "47a34326e360e19974e444557db49a4ca948111210f32e31cb43b24ce9b204a4",
+      "src/alfa_agent/prompts/repair_json.md": "098fe8e18948811d22da28f5f4b4c05a0bce05c51da4c09c090975420821fba3",
+      "src/alfa_agent/prompts/research_narrative.md": "800f6385174cf50e7eb3dd6d50ea0fcaeb9b4be877959832957a060e82b429a4",
+      "src/alfa_agent/prompts/research_plan.md": "b9a89a4428933fa7d5e339c30649ee3675d8d0df6f0582dd1d57cd4467e788ae",
+      "src/alfa_agent/prompts/research_verify.md": "ed389febd8d4f5b8a3288ed5eddb066454c5ac10ecf189da236ebfe2ab5f5dce",
+      "src/alfa_agent/prompts/research_write.md": "53c34bfb59a81d6dcc4c166bbc72081829329e82a82b4d49f69a1c17c6d39f8e",
+      "src/alfa_agent/prompts/verifier.md": "b970eac310c14998e4fe62b13d30fc9e07e44517679524e59bb88f9f04173435",
+      "src/alfa_agent/public_sources.py": "0ca524738910cfb015aad3355cf260f65ce007bc82a02a44d1f060a74770cdd7",
+      "src/alfa_agent/reporting.py": "4651ba43c105dbcb3ec0c40e07e43731e4eb8f3611fe72fe0002a8304342f854",
+      "src/alfa_agent/research.py": "b258182bd35f72fe54c61011165f82faf8761bfca4722fab8811d5917e4e5fc7",
+      "src/alfa_agent/research_rules.py": "44bd9a9fa7156ee14dd8defbfc6f90cbbf5fecd48666a19ddf0e7c34e1ef53ae",
+      "src/alfa_agent/role_rules.py": "4cad7650ed3076d72c7b8529247483a5cfd1621cb9995edc57935810000388c5",
+      "src/alfa_agent/roles.py": "c8fd898e0558fdc15fed225cde8b5aeb9d03761fc1492c5d69c8f120fceb55ee",
+      "src/alfa_agent/service.py": "3ad8f5124c21f8c4ef64bd311b7ec0adf8f757c5f459903d589bab9b7f6ec433",
+      "src/alfa_agent/settings.py": "36dbc04741089860e41227d3131c8d656c4a941c8f9fe203d1a011dbd05f8d45",
+      "src/alfa_agent/state.py": "fc47f62b9f4eb24c17f6f961184bc0f7ec4ac0e41147531bb86b7ab91531df61",
+      "src/alfa_agent/static/app.js": "a678c908429cbfb300fcac4d38cefac8315ff86a940e88335e208ec6a83b4995",
+      "src/alfa_agent/static/decision-ui.js": "fca45f11e75d8d75b3d6a9dda5cf111c63000179869373ed741e364299ec11ce",
+      "src/alfa_agent/static/favicon.svg": "bd43a3e70916c8373fa25b899b39310980f4f26ae41f34178fdd7385d27514f2",
+      "src/alfa_agent/static/index.html": "83898ef1a955884561bac5632bc830c4d4807379dbaa734c1fc8e9977640e7f4",
+      "src/alfa_agent/static/login.css": "9fda48e572a5eabf96d5d5a1779cb8b4b00829e8edd3631f8379b94cbdde902d",
+      "src/alfa_agent/static/login.html": "f4d371f97d57a2703a4be64679df933566f41cccf15de79fc4f159f835aa125a",
+      "src/alfa_agent/static/style.css": "b44e5bf2a3c4bede262358300f559540aad176bf4ea35167b172c4e9a2648b5e",
+      "src/alfa_agent/storage.py": "407bbd1c6f29bdb5b2aa4f7e65c69ab14a3a1e4624c3bdb728f1589423ce295f",
+      "src/alfa_agent/tools.py": "24de232664fee133ffd4f24f7b8e667a418ec363ef3d6c43a058a740d3c2e1db",
+      "src/alfa_agent/verification.py": "de62a04516c78c43fbc991cc1e5607a050784059f7f45a00cee48cf1c9e94f30",
+      "src/alfa_agent/worker.py": "2e1c1e306643c3ff0dbb225ba0c1259752107e4f0cd5a29124d244a6a414667c",
+      "src/alfa_agent/workspace.py": "75b9981067540d4c76f65f5b92ede875411ab03d6f298fd21bcbf635a7e83720",
+      "uv.lock": "cbde45770eb7411cc8d8ca76fe04552965f8cd582ece4a976f0d27dd38911133"
+    },
+    "sha256": "5848305965ee2b87344d1cef0408674d7c53e414842ff92d6c7ca7fa193dae8c"
+  }
 }
