@@ -110,3 +110,51 @@ def test_unverified_currency_date_is_scope_metadata_but_today_is_not_event_evide
         0
     ].outcome = "Центральный банк принял новое решение 2026-10-25 и изменил условия фондирования."
     assert "unsupported_forecast_date" in validate_narrative(value, LEDGER, {}, as_of=AS_OF)
+
+
+@pytest.mark.parametrize(
+    "name,industry,title,reason",
+    [
+        (
+            "Магнит",
+            "Розничная торговля продуктами",
+            "Омский регоператор Магнит зовёт детей в мир экотворчества",
+            "ambiguous_name_other_industry",
+        ),
+        (
+            "Северсталь",
+            "Металлургия и производство стали",
+            "Локомотив — Северсталь: прямая трансляция матча КХЛ",
+            "ambiguous_name_sports_entity",
+        ),
+        ("Магнит", "Розничная торговля продуктами", "Акции ПАО Магнит, ао", "instrument_page_without_event"),
+    ],
+)
+def test_observed_live_entity_collisions_are_not_own_company_events(name, industry, title, reason):
+    from datetime import datetime, timezone
+    from alfa_agent.news_ranking import score_item
+
+    item = {
+        "title": title,
+        "published_at": "2026-10-24T10:00:00Z",
+        "url": "https://example.org/item",
+        "read_status": "article_read",
+        "excerpt": "Новости финансов, инвестиций и прибыли.",
+    }
+    context = {"name": name, "industry": industry, "bank": False, "anonymous": False}
+    assert score_item(item, context, "cmo", datetime(2026, 10, 25, tzinfo=timezone.utc)) == (None, reason)
+
+
+def test_confirmed_industry_field_is_used_even_without_an_uploaded_document():
+    from alfa_agent.news_ranking import company_context
+
+    context = company_context(
+        {
+            "context": {
+                "fields": {
+                    "industry": {"value": "Розничная торговля", "category": "general", "label": "Отрасль"}
+                }
+            }
+        }
+    )
+    assert context["industry"] == "Розничная торговля"

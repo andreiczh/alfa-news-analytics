@@ -180,7 +180,7 @@ class NewsService:
             "candidate_count": len(result.get("items", [])),
             "excluded": excluded,
             "read_count": sum(i["read_status"] == "article_read" for i in public),
-            "ranking_version": "news-rules-v1",
+            "ranking_version": "news-rules-v2-entity-context",
             "ranking_note": "Баллы — прозрачный приоритет проверки, не вероятность и не размер финансового эффекта.",
             "scope": "Ленты ЦБ/РБК и резервный Интерфакс + поиск по публичному названию. Внутренние показатели и ФИ не передаются в поиск.",
             "profile_note": "Приоритет пересчитан по текущему профилю; доступные источники могли быть собраны по его предыдущей версии.",

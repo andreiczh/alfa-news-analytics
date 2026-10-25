@@ -204,7 +204,12 @@ def company_context(snapshot):
         f for f in features if f.get("status") not in {"missing", "conflicted", "conflict", "conflicting"}
     ]
     name = next((f.get("text_value") for f in good if f["name"] == "company_name"), "") or ""
-    industry = next((f.get("text_value") for f in good if f["name"] == "industry"), "") or ""
+    fields = snapshot.get("context", {}).get("fields", {})
+    industry = (
+        next((f.get("text_value") for f in good if f["name"] == "industry"), "")
+        or fields.get("industry", {}).get("value")
+        or ""
+    )
     bank = is_bank_company(name, snapshot)
     exposure_topics = set()
     # Feature names alone never imply exposure: require a present value.
@@ -230,7 +235,6 @@ def company_context(snapshot):
             exposure_topics.add("funding")
         if f["name"] in {"foreign_currency_exposure", "currency_exposure", "export_share", "import_share"}:
             exposure_topics.add("fx")
-    fields = snapshot.get("context", {}).get("fields", {})
     priority_fields = [
         f for f in fields.values() if f.get("category") in {"priorities", "strategy", "risks", "finance"}
     ]
@@ -293,6 +297,28 @@ def score_item(item, context, role, now, window_days=7):
     topics = topics_for(item)
     title = item["title"]
     direct = not context["anonymous"] and entity_matches(context["name"], title)
+    industry = context.get("industry", "")
+    if direct and re.search(r"\bКХЛ\b|\bХК\b|матч\w*|хоккей|плей.офф|прямая трансляция", title, re.I):
+        if not re.search(r"спорт|хоккей|развлечен", industry, re.I) and not re.search(
+            r"спонсор|финансов|выручк|акцион|инвест|партн[её]р|металлург|производств|ретейл", title, re.I
+        ):
+            return None, "ambiguous_name_sports_entity"
+    if direct and re.search(r"регоператор|региональн\w*\s+оператор|вывоз\w*\s+мусор", title, re.I):
+        if re.search(r"рознич|ретейл|ритейл|торговл|продукт\w*\s+питани", industry, re.I) and not re.search(
+            r"магазин|супермаркет|ретейл|ритейл|торгов\w*\s+сет", title, re.I
+        ):
+            return None, "ambiguous_name_other_industry"
+    if re.search(r"^Акции\s+(?:ПАО|АО|ОАО)\b", title, re.I) and not re.search(
+        r"вырос|упал|сниз|выплат|размест|приостан|возобнов|объяв", title, re.I
+    ):
+        return None, "instrument_page_without_event"
+    if (
+        not direct
+        and not context["bank"]
+        and not re.search(r"финанс|инвестиц|брокер|страхов", industry, re.I)
+    ):
+        if re.search(r"реестр\w*.*лицензи\w*.*профессиональн\w*\s+участник", title, re.I):
+            return None, "unrelated_financial_market_register"
     analyst = direct and bool(
         re.search(
             r"сохраняет оценку|оставляет рейтинг|для акций|наш прогноз|ожида[ею]т от цб|жд[её]м от цб",
@@ -335,6 +361,9 @@ def score_item(item, context, role, now, window_days=7):
     industry_match = bool(industry_words & {w[:6] for w in re.findall(r"[а-яёa-z]{5,}", title.casefold())})
     priority_match = sorted(set(topics) & set(context.get("priority_topics", [])))
     competitor_match = [c for c in context.get("competitors", []) if entity_matches(c, title)]
+    headline_topics = topics_for({"title": title, "excerpt": ""})
+    if not direct and not sector and not industry_match and not competitor_match and not headline_topics:
+        return None, "no_headline_business_channel"
     if (
         not direct
         and not sector
@@ -347,7 +376,6 @@ def score_item(item, context, role, now, window_days=7):
     if not topics:
         return None, "no_business_channel"
     weights = ROLE_WEIGHTS[role]
-    headline_topics = topics_for({"title": title, "excerpt": ""})
     main_topic = max(headline_topics or topics, key=lambda t: weights.get(t, 0))
     affinity = weights.get(main_topic, 0)
     if affinity == 0:
