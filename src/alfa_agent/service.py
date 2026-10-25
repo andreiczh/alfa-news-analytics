@@ -62,6 +62,11 @@ class Service:
 
         self.news = NewsService(self)
         self.research = ResearchService(self)
+        from .personalization import Personalization
+        from .company_dialogue import ContextService
+
+        self.personalization = Personalization(self)
+        self.context_dialogue = ContextService(self)
 
     def authorize_company(self, company_id):
         principal = current_principal.get()

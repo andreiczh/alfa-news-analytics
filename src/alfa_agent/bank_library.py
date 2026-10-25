@@ -19,10 +19,12 @@ class BankLibrary:
     def summary(self):
         return [{k: v for k, v in d.items() if k != "pages"} for d in self.documents]
 
-    def search(self, query, limit=6):
+    def search(self, query, limit=6, document_id=None):
         wanted = terms(query)
         ranked = []
         for document in self.documents:
+            if document_id and document["document_id"] != document_id:
+                continue
             for page in document["pages"]:
                 lines = page["text"].splitlines()
                 if (
@@ -78,3 +80,107 @@ class BankLibrary:
             if len(result) >= limit:
                 break
         return result
+
+    def recommend(self, snapshot, role):
+        from .news_ranking import company_context, ROLE_WEIGHTS, TOPIC_RULES
+        from .personalization import ROLE_NAMES
+
+        context = company_context(snapshot)
+        weights = ROLE_WEIGHTS.get(role, ROLE_WEIGHTS["other"])
+        wanted = set(context.get("priority_topics", [])) | set(context.get("exposure_topics", []))
+        descriptions = {
+            "bank_case_01": (
+                ["demand"],
+                "Изменения потребления и спроса: сопоставьте с целевыми сегментами и планом продаж.",
+            ),
+            "bank_case_02": (
+                ["strategy", "demand"],
+                "Исторический отраслевой пример; показатели не описывают текущую ситуацию.",
+            ),
+            "bank_case_03": (
+                ["inflation", "demand", "earnings"],
+                "Макроэкономические предпосылки для сценариев спроса, затрат и бюджета.",
+            ),
+            "bank_case_04": (
+                ["rates", "funding"],
+                "Датированный взгляд на ставку: проверьте предпосылки переоценки и финансирования.",
+            ),
+            "bank_case_05": (
+                ["inflation", "demand", "earnings"],
+                "Макроэкономический фон и исходные факторы планирования.",
+            ),
+            "bank_case_06": (
+                ["funding", "rates", "fx", "strategy"],
+                "Рынок долга и валют: сопоставьте с задачами фондирования и управления риском.",
+            ),
+            "bank_case_07": (
+                ["inflation"],
+                "Факторы изменения цен для проверки себестоимости, цен и потребительского спроса.",
+            ),
+            "bank_case_08": (
+                ["fx", "strategy"],
+                "Отраслевой обзор золота; применимость зависит от связи бизнеса с этим рынком.",
+            ),
+            "bank_case_09": (
+                ["funding", "credit"],
+                "Долговой рынок и эмитенты: экспозиции компании и актуальность условий проверяются отдельно.",
+            ),
+        }
+        profile_text = " ".join(
+            (f.get("text_value") or "")
+            for f in snapshot.get("profile", {}).get("features", [])
+            if f.get("status") not in {"missing", "conflicting"}
+        )
+        result = []
+        for doc in self.summary():
+            topics, use = descriptions.get(doc["document_id"], ([], "Применимость материала нужно уточнить."))
+            matched = sorted(set(topics) & wanted)
+            score = max((weights.get(t, 0) for t in topics), default=0) + len(matched) * 14
+            reasons = []
+            if matched:
+                labels = [label for t in matched for label in context.get("priority_labels", {}).get(t, [])]
+                reasons.append(
+                    "Связано с вашим приоритетом: " + labels[0]
+                    if labels
+                    else "В профиле указан связанный фактор: " + TOPIC_RULES[matched[0]][0].lower()
+                )
+            if topics:
+                best = max(topics, key=lambda t: weights.get(t, 0))
+                reasons.append(
+                    "Для роли «" + ROLE_NAMES.get(role, "Руководитель") + "»: " + TOPIC_RULES[best][0].lower()
+                )
+            specialized = doc["document_id"] in {"bank_case_02", "bank_case_08"}
+            related = (
+                bool(
+                    re.search(
+                        r"стал|металлург|руда"
+                        if doc["document_id"] == "bank_case_02"
+                        else r"золот|драгоцен|ювелир",
+                        profile_text,
+                        re.I,
+                    )
+                )
+                if specialized
+                else True
+            )
+            historical = (doc.get("published_at") or "2026")[:4] < "2026"
+            if specialized and not related:
+                score = 0
+                reasons = ["Связь вашей компании с отраслью материала не подтверждена."]
+            if historical:
+                score = min(score, 5)
+                reasons.append("Материал исторический; его прогноз нельзя переносить на текущий период.")
+            result.append(
+                {
+                    **doc,
+                    "relevance": {
+                        "score": score,
+                        "recommended": score >= 20 and not historical,
+                        "reasons": reasons,
+                        "use": use,
+                        "topics": topics,
+                        "scope": "Подбор по роли и подтверждённому вами контексту; не доказательство финансового эффекта.",
+                    },
+                }
+            )
+        return sorted(result, key=lambda d: d["relevance"]["score"], reverse=True)

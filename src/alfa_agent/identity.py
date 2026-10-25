@@ -34,6 +34,7 @@ def role_for(title):
         "ceo": ("генераль", "ceo", "собственник"),
         "coo": ("операци", "coo", "закуп"),
         "cco": ("коммерч", "cco", "продаж"),
+        "cmo": ("маркет", "cmo", "marketing"),
     }.items():
         if any(part in value for part in needles):
             return role

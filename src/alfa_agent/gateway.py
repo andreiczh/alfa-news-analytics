@@ -107,9 +107,11 @@ class LiveGateway:
                 "research_plan": 3500,
                 "research_write": 8000,
                 "research_verify": 4500,
+                "context_interview": 6000,
+                "research_narrative": 10000,
             }.get(stage, 3000),
         }
-        if stage.startswith("research_") or stage == "profile_extractor":
+        if stage.startswith(("research_", "context_")) or stage == "profile_extractor":
             request["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {"name": stage, "strict": True, "schema": schema},

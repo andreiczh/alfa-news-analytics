@@ -8,6 +8,7 @@
     <title>Пульс бизнеса</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/decision-ui.js" defer></script>
     <script src="/static/app.js" defer></script>
   </head>
   <body>
@@ -50,11 +51,12 @@
           </button>
         </nav>
         <div class="sidebar-bottom">
-          <button id="company-switch" class="company-switch">
+          <div class="company-switch workspace-summary">
             <span class="caption">Рабочая компания</span
             ><strong id="company-name">Загрузка…</strong
-            ><span class="link-text">Сменить компанию</span></button
-          ><button id="help" class="quiet-button">Как работает сервис</button>
+            ><span class="caption">Компания и роль — в профиле сверху</span>
+          </div>
+          <button id="help" class="quiet-button">Как работает сервис</button>
         </div>
       </aside>
       <div class="main-wrap">

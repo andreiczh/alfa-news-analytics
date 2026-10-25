@@ -1317,3 +1317,347 @@ dialog::backdrop {
     scroll-behavior: auto !important;
   }
 }
+
+/* Decision workspace: one context, progressive analytical depth. */
+.overview-stack {
+  display: grid;
+  gap: 24px;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+.decision-overview {
+  padding: 28px;
+  border-top: 3px solid var(--red);
+  background: #fff;
+}
+.decision-overview > h2 {
+  font-size: 22px;
+  margin: 8px 0 18px;
+}
+.decision-headline {
+  font-size: clamp(19px, 2vw, 25px);
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: -0.35px;
+  max-width: 900px;
+}
+.brief-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin: 24px 0 12px;
+}
+.brief-columns h3 {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.brief-columns p {
+  font-size: 14px;
+  line-height: 1.65;
+}
+.priority-caption {
+  background: #f5f6f8;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.context-nudge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 14px 0;
+}
+.context-nudge p {
+  margin: 0;
+}
+.attention-signal {
+  border: 1px solid #ebc6c8;
+  background: #fff5f5;
+  border-radius: 12px;
+  padding: 14px;
+  margin: 12px 0;
+}
+.attention-signal p {
+  margin: 8px 0 0;
+}
+.context-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr);
+  gap: 22px;
+  margin: 0 0 24px;
+  align-items: start;
+}
+.context-interview,
+.saved-context {
+  min-width: 0;
+}
+.context-conversation {
+  display: grid;
+  gap: 14px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 6px 4px 16px;
+  overscroll-behavior: contain;
+}
+.chat-bubble {
+  padding: 16px;
+  border-radius: 14px;
+  max-width: 96%;
+  overflow-wrap: anywhere;
+}
+.chat-bubble p {
+  white-space: pre-wrap;
+}
+.chat-bubble p:last-child {
+  margin-bottom: 0;
+}
+.chat-bubble.user {
+  background: #f1f3f6;
+  justify-self: end;
+}
+.chat-bubble.assistant {
+  background: #fff;
+  border: 1px solid var(--line);
+  justify-self: start;
+}
+.chat-welcome {
+  background: #f7f8fa;
+  border-radius: 14px;
+  padding: 18px;
+}
+.context-questions {
+  padding-left: 20px;
+  margin: 12px 0;
+}
+.context-questions li + li {
+  margin-top: 8px;
+}
+.context-compose {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+.context-compose textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.context-compose .fine-print {
+  max-width: 270px;
+  margin: 0;
+}
+.context-review {
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 0 3px 8px;
+}
+.review-field {
+  padding: 16px;
+  box-shadow: none;
+}
+.review-field textarea {
+  width: 100%;
+}
+.previous-value {
+  color: var(--muted);
+  font-size: 12px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+}
+.saved-context details {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+.saved-context details:last-of-type {
+  margin-bottom: 16px;
+}
+.saved-field {
+  padding: 12px 0 4px;
+}
+.saved-field h3 {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 5px;
+}
+.saved-field p {
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.profile-name {
+  font-size: 18px;
+  font-weight: 600;
+}
+.analytical-memo {
+  display: grid;
+  gap: 18px;
+  margin: 24px 0;
+  max-width: 100%;
+}
+.memo-section {
+  padding: 26px 30px;
+}
+.memo-section > h2 {
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+.narrative-point + .narrative-point {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin-top: 18px;
+}
+.narrative-point > p {
+  margin: 10px 0;
+  max-width: 86ch;
+  font-size: 15px;
+  line-height: 1.75;
+}
+.narrative-point .condition {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.narrative-point details,
+.scenario-card details {
+  font-size: 13px;
+}
+.forecast-section {
+  border-top: 3px solid #a8b5c7;
+}
+.scenario-card {
+  padding: 18px;
+  background: #f7f8fa;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-top: 14px;
+}
+.scenario-card h3 {
+  margin: 12px 0;
+  font-size: 17px;
+}
+.scenario-card h4,
+.fresh-news-card h4 {
+  font-size: 12px;
+  margin: 18px 0 6px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.scenario-card > p {
+  max-width: 86ch;
+}
+.evidence-item {
+  padding: 12px 0;
+}
+.fresh-news-card .condition {
+  font-size: 12px;
+}
+.news-controls {
+  justify-content: flex-end;
+}
+.news-controls .field {
+  flex: 0 1 190px;
+}
+.workspace-summary {
+  cursor: default;
+}
+.bank-card h4 {
+  margin: 12px 0 6px;
+  font-size: 13px;
+}
+.bank-card p {
+  line-height: 1.6;
+}
+.account-copy {
+  max-width: 330px;
+}
+.account-copy small {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  display: block;
+}
+@media (min-width: 1100px) {
+  .main-wrap {
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+@media (max-width: 1000px) {
+  .brief-columns {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .context-workspace {
+    grid-template-columns: 1fr;
+  }
+  .saved-context {
+    order: 2;
+  }
+}
+@media (max-width: 600px) {
+  .overview-stack {
+    gap: 18px;
+  }
+  .decision-overview,
+  .memo-section {
+    padding: 20px 16px;
+  }
+  .decision-headline {
+    font-size: 20px;
+  }
+  .context-nudge,
+  .context-compose .between {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .context-compose .button {
+    width: 100%;
+  }
+  .chat-bubble {
+    max-width: 100%;
+    padding: 13px;
+  }
+  .account-copy {
+    max-width: 175px;
+  }
+  .context-review {
+    max-height: 70vh;
+  }
+  .scenario-card {
+    padding: 14px;
+  }
+  .memo-section > h2 {
+    font-size: 18px;
+  }
+  .narrative-point > p {
+    font-size: 14px;
+  }
+  .context-conversation {
+    max-height: 420px;
+  }
+}
+@media (max-width: 360px) {
+  .account-copy {
+    max-width: 115px;
+  }
+  .topbar {
+    gap: 10px;
+  }
+}
+.overview-outlook {
+  padding: 18px 20px;
+  margin: 18px 0;
+  background: #f6f8fb;
+  border-radius: 12px;
+}
+.overview-outlook h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.overview-outlook > p {
+  margin: 10px 0;
+}

@@ -50,6 +50,8 @@ class Workspace:
             CREATE TABLE IF NOT EXISTS company_access(company_id TEXT PRIMARY KEY,user_id TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS employee_profiles(user_id TEXT PRIMARY KEY,company_id TEXT NOT NULL,
               full_name TEXT NOT NULL,company_name TEXT NOT NULL,job_title TEXT NOT NULL,role TEXT NOT NULL,created_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS company_strategy(company_id TEXT PRIMARY KEY,
+              revision INTEGER NOT NULL,fields_json TEXT NOT NULL,updated_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS company_context(company_id TEXT PRIMARY KEY,text TEXT NOT NULL,website TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS user_favorites(user_id TEXT NOT NULL,company_id TEXT NOT NULL,event_id TEXT NOT NULL,run_id TEXT,created_at TEXT NOT NULL,PRIMARY KEY(user_id,company_id,event_id));
             CREATE INDEX IF NOT EXISTS files_company ON company_files(company_id,created_at);
@@ -95,11 +97,40 @@ class Workspace:
             row = db.execute(
                 "SELECT text,website,updated_at FROM company_context WHERE company_id=?", (company_id,)
             ).fetchone()
-        return (
-            {"description": row[0], "website": row[1], "updated_at": row[2]}
-            if row
-            else {"description": "", "website": "", "updated_at": None}
+        with self.store.connection() as db:
+            strategy = db.execute(
+                "SELECT * FROM company_strategy WHERE company_id=?", (company_id,)
+            ).fetchone()
+        fields = json.loads(strategy["fields_json"]) if strategy else {}
+        from .personalization import marked_test_context
+
+        synthetic = marked_test_context(row[0] if row else "") or any(
+            f.get("synthetic") or marked_test_context(f["value"]) for f in fields.values()
         )
+        turn_ids = list({f["turn_id"] for f in fields.values() if f.get("turn_id")})
+        if turn_ids and not synthetic:
+            with self.store.connection() as db:
+                if db.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='context_turns'"
+                ).fetchone():
+                    placeholders = ",".join("?" for _ in turn_ids)
+                    origins = db.execute(
+                        "SELECT input_json FROM context_turns WHERE company_id=? AND id IN ("
+                        + placeholders
+                        + ")",
+                        [company_id, *turn_ids],
+                    ).fetchall()
+                    synthetic = any(
+                        marked_test_context(json.loads(origin[0])["message"]) for origin in origins
+                    )
+        return {
+            "synthetic": synthetic,
+            "description": row[0] if row else "",
+            "website": row[1] if row else "",
+            "updated_at": strategy["updated_at"] if strategy else row[2] if row else None,
+            "revision": strategy["revision"] if strategy else 0,
+            "fields": fields,
+        }
 
     def save_context(self, company_id, description, website):
         self.require_writable(company_id)
@@ -112,6 +143,11 @@ class Workspace:
             db.execute(
                 "INSERT INTO company_context VALUES(?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET text=excluded.text,website=excluded.website,updated_at=excluded.updated_at",
                 (company_id, description.strip(), website, utcnow().isoformat()),
+            )
+            db.execute(
+                """INSERT INTO company_strategy VALUES(?,1,'{}',?) ON CONFLICT(company_id)
+                DO UPDATE SET revision=revision+1,updated_at=excluded.updated_at""",
+                (company_id, utcnow().isoformat()),
             )
             db.execute("UPDATE company_versions SET version=version+1 WHERE company_id=?", (company_id,))
 
@@ -172,28 +208,60 @@ class Workspace:
             source_snapshot_ids=[did],
         )
         context = self.context(company_id)
-        context_text = context["description"]
+        parts = []
+        if context["description"]:
+            parts.append(("description", "Свободное описание", context["description"]))
+        parts.extend((key, item["label"], item["value"]) for key, item in context["fields"].items())
         if context["website"]:
-            context_text += "\nСайт, указанный пользователем: " + context["website"]
-        if context_text.strip():
-            text += "\n" + context_text.strip()
-            doc = doc.model_copy(update={"sha256": hashlib.sha256(text.encode()).hexdigest()})
-            ev = ev.model_copy(update={"quote": text})
-            profile.features.append(
-                FeatureCandidate(
-                    feature_id=company_id + "_description",
-                    name="company_description",
-                    text_value=context_text.strip(),
-                    status="self_reported",
-                    period=TimeScope(),
-                    source_refs=[Citation(kind="evidence", ref_id=eid)],
+            parts.append(("website", "Сайт, указанный компанией", context["website"]))
+        evidence, chunks, body = [ev.model_dump(mode="json")], [], [text]
+        feature_names = {
+            "description": "company_description",
+            "industry": "industry",
+            "products": "key_products",
+            "geography": "markets",
+            "competitors": "competitors",
+            "business_model": "business_model",
+            "goals": "strategy",
+            "priorities": "information_priorities",
+        }
+        for key, label, value in parts:
+            refs = []
+            body.append(label + ": " + value)
+            for offset in range(0, len(value), 1800):
+                chunk = value[offset : offset + 1800]
+                ref = company_id + "_context_" + key + "_" + str(offset)
+                evidence.append(
+                    Evidence(
+                        evidence_id=ref,
+                        document_id=did,
+                        object_kind="answer",
+                        locator=label,
+                        quote=chunk,
+                        extraction_method="user",
+                    ).model_dump(mode="json")
                 )
-            )
+                chunks.append({"id": key + "_" + str(offset), "locator": label, "text": chunk, "page": None})
+                refs.append(Citation(kind="evidence", ref_id=ref))
+            if refs:
+                profile.features.append(
+                    FeatureCandidate(
+                        feature_id=company_id + "_context_" + key,
+                        name=feature_names.get(key, "context_" + key),
+                        text_value=value,
+                        status="self_reported",
+                        period=TimeScope(),
+                        source_refs=refs,
+                    )
+                )
+        text = "\n".join(body)
+        doc = doc.model_copy(update={"sha256": hashlib.sha256(text.encode()).hexdigest()})
         return {
             "profile": profile.model_dump(mode="json"),
             "documents": [doc.model_dump(mode="json")],
-            "evidence": [ev.model_dump(mode="json")],
+            "evidence": evidence,
             "document_text": {did: text},
+            "document_chunks": {did: chunks},
             "metadata": {
                 "source": "company_upload",
                 "warnings": [
@@ -227,6 +295,7 @@ class Workspace:
         # Deep copy: preview/snapshots must never mutate a source bundle or old run.
         base = json.loads(json.dumps(base, ensure_ascii=False))
         base.setdefault("document_chunks", {})
+        base["context"] = self.context(company_id)
         profile = CompanyProfile.model_validate(base["profile"])
         candidates = defaultdict(list)
         for feature in profile.features:

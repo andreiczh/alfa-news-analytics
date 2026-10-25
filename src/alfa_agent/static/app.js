@@ -7,6 +7,7 @@ const ROLES = {
   ceo: "CEO",
   coo: "COO",
   cco: "CCO",
+  cmo: "CMO",
 };
 const ROLE_NAMES = {
   cfo: "Финансовый директор",
@@ -14,6 +15,7 @@ const ROLE_NAMES = {
   ceo: "Генеральный директор",
   coo: "Операционный директор",
   cco: "Коммерческий директор",
+  cmo: "Директор по маркетингу",
 };
 const ICONS = {
   home: '<path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/>',
@@ -31,6 +33,14 @@ const ICONS = {
   star: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/>',
 };
 const LABELS = {
+  information_priorities: "Информационные приоритеты",
+  funding_structure: "Структура фондирования",
+  repricing_gap: "Разрыв переоценки активов и обязательств",
+  deposit_beta: "Депозитная бета",
+  liquidity_buffer: "Буфер ликвидности",
+  net_interest_income: "Чистый процентный результат",
+  capital_adequacy: "Достаточность капитала",
+  credit_portfolio: "Кредитный портфель",
   company_name: "Название",
   company_description: "О компании",
   reported_name: "Название в документе",
@@ -92,12 +102,17 @@ const S = {
   docPoll: null,
   news: null,
   newsPoll: null,
-  newsRole: "cfo",
   newsDays: 7,
   newsExpanded: false,
   newsLoading: false,
   uploading: false,
   starting: false,
+  selecting: false,
+  contextChat: null,
+  contextDraft: "",
+  contextPoll: null,
+  contextSending: false,
+  contextError: null,
   draft: { question: "", news: "", urls: "", public: true },
 };
 
@@ -214,8 +229,10 @@ function roleFor(title) {
   if (/казнач|treasur/.test(t)) return "treasurer";
   if (/\bceo\b|генеральн/.test(t)) return "ceo";
   if (/\bcoo\b|операцион/.test(t)) return "coo";
+  if (/\bcmo\b|маркет|marketing/.test(t)) return "cmo";
   if (/\bcco\b|коммерческ/.test(t)) return "cco";
-  return "cfo";
+  if (/cfo|финанс/.test(t)) return "cfo";
+  return "other";
 }
 function statusText(status) {
   return (
@@ -270,6 +287,22 @@ const ERRORS = {
     "API вернул неполный ответ. Попробуйте сузить вопрос.",
   context_limit:
     "Слишком большой контекст. Сузьте вопрос или исключите лишние документы.",
+  personalization_busy: "Сначала дождитесь переключения компании и роли.",
+  company_context_changed:
+    "Контекст уже изменился. Закройте предложение, обновите профиль и проверьте изменения заново.",
+  context_dialogue_busy:
+    "Помощник ещё готовит ответ. Дождитесь результата или отмените текущий запрос.",
+  context_proposal_not_ready:
+    "Предложение ещё не готово или уже закрыто. Обновите диалог.",
+  context_contract_invalid:
+    "Ответ AI не прошёл проверку исходных слов. Ничего не сохранено. Уточните сообщение или отредактируйте контекст вручную.",
+  context_interrupted_manual_retry:
+    "Диалог прерван перезапуском. Автоматический платный повтор отключён; отправьте сообщение заново при необходимости.",
+  context_queue_limit: "Очередь помощника заполнена. Попробуйте позже.",
+  company_context_limit:
+    "Контекст слишком большой. Сократите отдельные поля или удалите устаревшие сведения.",
+  duplicate_context_field:
+    "Одно поле указано дважды. Проверьте изменения перед сохранением.",
   unsupported_public_topic: "Эта тема поиска пока не поддерживается.",
   research_limit:
     "Достигнут лимит шагов исследования. Сузьте вопрос и повторите.",
@@ -342,6 +375,13 @@ function busyDocs() {
     )
   );
 }
+function featureLabel(f) {
+  return (
+    LABELS[f.name] ||
+    S.snapshot?.context?.fields?.[f.name.replace(/^context_/, "")]?.label ||
+    "Дополнительный признак"
+  );
+}
 function featureValue(f) {
   if (f.status === "missing") return "Нет данных";
   if (f.status === "conflicting")
@@ -377,9 +417,20 @@ function isBank() {
   return /банк|\bbank\b/i.test(companyName());
 }
 function defaultQuestion() {
-  return isBank()
-    ? "Какие изменения внешней среды стоит учесть при планировании фондирования, ликвидности и процентного результата?"
-    : "Какие изменения внешней среды важны для нашей компании и что стоит проверить в первую очередь?";
+  const questions = {
+    ceo: "Какие внешние изменения влияют на стратегические цели компании, какие сценарии и решения стоит рассмотреть?",
+    cco: "Как меняются спрос, конкуренты и условия продаж в наших целевых сегментах и что проверить коммерческому директору?",
+    cmo: "Какие изменения потребительского поведения, конкурентов и рынка важны для нашей компании и маркетинговых приоритетов?",
+    coo: "Какие внешние изменения могут повлиять на закупки, затраты и устойчивость операций нашей компании?",
+    treasurer:
+      "Какие события влияют на фондирование, ликвидность и платёжный календарь компании?",
+  };
+  return (
+    questions[S.role] ||
+    (isBank()
+      ? "Какие свежие изменения стоит учесть при планировании фондирования, ликвидности и процентного результата банка?"
+      : "Какие свежие события влияют на финансовые приоритеты компании и что проверить в первую очередь?")
+  );
 }
 
 function go(view) {
@@ -388,6 +439,7 @@ function go(view) {
   $("#mobile-menu").setAttribute("aria-expanded", "false");
   render();
   if (view === "home") loadNews(true);
+  if (view === "company") loadContextConversation();
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 function render() {
@@ -400,9 +452,21 @@ function render() {
       ),
     );
   $("#company-name").textContent = companyName();
+  updateAccountCaption();
   $("#main").setAttribute("aria-busy", "false");
   const main = $("#main");
   main.replaceChildren();
+  if (!S.snapshot && S.selecting) {
+    main.setAttribute("aria-busy", "true");
+    main.append(
+      add(
+        node("div", "loading-initial"),
+        node("span", "spinner"),
+        p("Открываем компанию и применяем вашу роль…"),
+      ),
+    );
+    return;
+  }
   if (!S.snapshot) {
     main.append(
       empty(
@@ -423,81 +487,12 @@ function render() {
     })[S.view] || renderHome
   )(main);
 }
-function contextCard() {
-  const c = card();
-  add(
-    c,
-    node("span", "eyebrow", "КОНТЕКСТ ИССЛЕДОВАНИЯ"),
-    node("h2", "context-title", companyName()),
-    p(origin(), "fine-print"),
-  );
-  for (const [a, b] of [
-    ["Ваша роль", S.me?.job_title || ROLES[S.role]],
-    [
-      "Прочитано файлов",
-      String(S.docs.filter((d) => d.status === "READY").length),
-    ],
-    ["Банковских материалов", String(S.library?.bank_documents?.length || 9)],
-  ])
-    c.append(
-      add(
-        node("div", "context-line"),
-        node("span", "", a),
-        node("strong", "", b),
-      ),
-    );
-  const description = S.snapshot.context?.description;
-  if (description)
-    c.append(
-      p(
-        description.slice(0, 230) + (description.length > 230 ? "…" : ""),
-        "fine-print",
-      ),
-    );
-  else
-    c.append(
-      p(
-        "Добавьте описание бизнеса и документы: пока известны только исходные сведения.",
-        "fine-print",
-      ),
-    );
-  add(
-    c,
-    button("Уточнить профиль", () => go("company"), "text-button"),
-    box(
-      "Вывод будет учитывать доступные источники. Недостающие данные останутся видимыми.",
-    ),
-  );
-  if (S.history.length) {
-    const completed = S.history.filter((j) =>
-      ["SUCCEEDED", "PARTIAL"].includes(j.status),
-    ).length;
-    const failed = S.history.filter((j) => j.status === "FAILED").length;
-    c.append(
-      detail(
-        "Проверки ваших исследований",
-        p(
-          "Из последних " +
-            S.history.length +
-            " запросов: " +
-            completed +
-            " завершены с проверкой оснований, " +
-            failed +
-            " не завершены. Это статус работы системы, не оценка истинности источников.",
-          "fine-print",
-        ),
-      ),
-    );
-  }
-  return c;
-}
-
 function composer(compact = false) {
   const c = card(compact ? "hero" : "");
   if (compact)
     add(
       c,
-      node("h2", "", "Что важно для вашей компании?"),
+      node("h2", "", "Задайте свой вопрос"),
       p("Задайте вопрос. Агент свяжет события, материалы банка и ваш бизнес."),
     );
   const form = node("form");
@@ -510,7 +505,10 @@ function composer(compact = false) {
   question.minLength = 12;
   question.required = true;
   question.value = S.draft.question;
-  question.addEventListener("input", () => (S.draft.question = question.value));
+  question.addEventListener("input", () => {
+    S.draft.question = question.value;
+    delete S.draft.bankDocumentId;
+  });
   form.append(question);
   const chips = node("div", "chips");
   let suggestions = isBank()
@@ -531,6 +529,33 @@ function composer(compact = false) {
         "Какие изменения спроса и действий конкурентов стоит проверить нашей компании?",
         "Как инфляция может повлиять на затраты и маржу нашей компании?",
       ];
+  const roleSuggestions = {
+    cmo: [
+      "Спрос и целевые сегменты",
+      "Конкуренты и позиционирование",
+      "Маркетинговые возможности",
+    ],
+    cco: [
+      "Спрос и план продаж",
+      "Предложения конкурентов",
+      "Цены и условия клиентов",
+    ],
+    ceo: ["Стратегические изменения", "Риски для роста", "Сценарии и решения"],
+    coo: [
+      "Закупки и поставщики",
+      "Затраты и процессы",
+      "Устойчивость операций",
+    ],
+  };
+  if (roleSuggestions[S.role]) {
+    suggestions = roleSuggestions[S.role];
+    questions = suggestions.map(
+      (topic) =>
+        "Какие свежие изменения по теме «" +
+        topic +
+        "» важны для нашей компании, как они связаны с нашими приоритетами и что проверить?",
+    );
+  }
   try {
     const saved = JSON.parse(localStorage.getItem(quickKey()) || "null");
     if (
@@ -555,6 +580,7 @@ function composer(compact = false) {
         () => {
           question.value = questions[i];
           S.draft.question = questions[i];
+          delete S.draft.bankDocumentId;
           question.focus();
         },
         "chip",
@@ -564,13 +590,6 @@ function composer(compact = false) {
   chips.append(button("Настроить", () => quickSettings(questions), "chip"));
   form.append(chips);
   const advanced = node("div", "advanced-fields");
-  const title = node("input");
-  title.id = "research-role";
-  title.maxLength = 120;
-  title.value = S.draft.jobTitle || S.me?.job_title || ROLES[S.role];
-  title.addEventListener("input", () => (S.draft.jobTitle = title.value));
-  title.placeholder = "CFO, казначей, CEO…";
-  advanced.append(field("Для какой должности готовим вывод", title));
   const urls = node("textarea");
   urls.id = "research-urls";
   urls.rows = 2;
@@ -586,9 +605,7 @@ function composer(compact = false) {
   news.value = S.draft.news;
   news.addEventListener("input", () => (S.draft.news = news.value));
   advanced.append(field("Текст новости", news));
-  form.append(
-    detail("Добавить новость, ссылки или изменить должность", advanced),
-  );
+  form.append(detail("Добавить новость или первоисточники", advanced));
   const checkbox = node("input");
   checkbox.type = "checkbox";
   checkbox.id = "public-search";
@@ -603,10 +620,11 @@ function composer(compact = false) {
     node(
       "span",
       "",
-      "Искать открытые источники. В поиск попадут название компании и общая тема; документы и внутренние показатели в поисковый запрос не включаются.",
+      "Искать открытые источники. В поисковый запрос попадёт только публичное название компании. Вопрос, документы и внутренние показатели туда не отправляются.",
     ),
   );
-  form.append(checkboxLabel);
+  if (compact) advanced.append(checkboxLabel);
+  else form.append(checkboxLabel);
   const submit = node("button", "button primary");
   submit.type = "submit";
   add(
@@ -642,7 +660,7 @@ function composer(compact = false) {
     }
     try {
       await startResearch(q, {
-        job_title: title.value,
+        job_title: activeRoleName(),
         source_urls: urls.value
           .split(/\n/)
           .map((x) => x.trim())
@@ -667,34 +685,26 @@ function field(label, input) {
 }
 
 function renderHome(main) {
-  main.append(
-    heading(
-      "События. Контекст. Следующий шаг.",
-      "Аналитика для " +
-        companyName() +
-        ", роль — " +
-        (S.me?.job_title || ROLES[S.role]) +
-        ".",
-    ),
-  );
-  const left = node("div", "stack"),
-    aside = node("aside", "stack");
-  left.append(composer(true));
+  main.append(heading("Обзор", companyName() + " · " + activeRoleName()));
+  const content = node("div", "overview-stack");
+  content.append(renderDecisionOverview(), composer(true));
   const news = node("section", "stack");
   news.id = "personal-news";
   news.setAttribute("aria-label", "Новости для компании и роли");
-  left.append(news);
+  content.append(news);
   renderNews(news);
-  const title = node("div", "section-heading");
-  title.append(node("h2", "", "Ваши исследования"));
+  const title = add(
+    node("div", "section-heading"),
+    node("h2", "", "Ваши исследования"),
+  );
   const filters = node("div", "segmented");
-  for (const [id, txt] of [
+  for (const [id, label] of [
     ["all", "Все"],
     ["favorites", "Избранное"],
   ])
     filters.append(
       button(
-        txt,
+        label,
         () => {
           S.filter = id;
           render();
@@ -703,40 +713,23 @@ function renderHome(main) {
       ),
     );
   title.append(filters);
-  left.append(title);
+  content.append(title);
   const visible = S.history.filter((j) => S.filter === "all" || j.favorite);
-  if (!visible.length)
-    left.append(
+  if (visible.length)
+    visible.slice(0, 5).forEach((j) => content.append(historyCard(j)));
+  else
+    content.append(
       empty(
         S.filter === "favorites"
           ? "Пока нет избранного"
-          : "Начните с одного вопроса",
+          : "Начните с вопроса о вашей компании",
         S.filter === "favorites"
-          ? "Сохраняйте полезные исследования, чтобы быстро вернуться к ним."
-          : "Добавьте сведения о компании — тогда вывод станет точнее.",
+          ? "Сохраняйте полезные исследования, чтобы вернуться к ним."
+          : "Уточните контекст и задайте вопрос. События будут связаны с задачами вашей роли.",
       ),
     );
-  else visible.slice(0, 5).forEach((j) => left.append(historyCard(j)));
-  left.append(
-    add(
-      node("div", "section-heading"),
-      node("h2", "", "Событие из материалов кейса"),
-    ),
-    newsCard(),
-  );
-  add(
-    aside,
-    contextCard(),
-    add(
-      card(),
-      node("h3", "", "Банковский взгляд — с датой"),
-      p(
-        "В исследовании доступны 9 материалов кейса. Прогноз своего периода останется прогнозом.",
-      ),
-      button("Открыть материалы", () => go("library"), "text-button"),
-    ),
-  );
-  main.append(add(node("div", "grid"), left, aside));
+  content.append(detail("Датированный сценарий из кейса", newsCard()));
+  main.append(content);
 }
 function historyCard(j) {
   return add(
@@ -772,19 +765,6 @@ function renderNews(container) {
   title.append(refresh);
   container.append(title);
   const controls = node("div", "news-controls");
-  const role = node("select");
-  role.id = "news-role";
-  for (const [key, label] of Object.entries(roles)) {
-    const option = node("option", "", label);
-    option.value = key;
-    role.append(option);
-  }
-  role.value = S.newsRole;
-  role.addEventListener("change", () => {
-    S.newsRole = role.value;
-    S.newsExpanded = false;
-    loadNews(false);
-  });
   const period = node("select");
   period.id = "news-window";
   for (const [days, label] of [
@@ -802,11 +782,7 @@ function renderNews(container) {
     S.newsExpanded = false;
     loadNews(false);
   });
-  add(
-    controls,
-    field("Новости для роли", role),
-    field("Период публикации", period),
-  );
+  add(controls, field("Период публикации", period));
   container.append(controls);
   container.append(
     p(
@@ -898,9 +874,26 @@ function renderNews(container) {
         "caption",
       ),
       p(item.focus, "news-focus"),
-      p(item.reasons.slice(0, 2).join(". "), "fine-print"),
+      node("h4", "", "Почему это важно для вашей компании"),
+      p(
+        item.decision?.why || item.reasons.slice(0, 2).join(". "),
+        "fine-print",
+      ),
+      node("h4", "", "Возможное влияние"),
+      p(
+        item.decision?.impact ||
+          "Канал влияния по имеющимся источникам не установлен.",
+      ),
+      p(
+        item.decision?.condition ||
+          "Проверьте применимость события к компании.",
+        "condition",
+      ),
+      item.decision?.signal
+        ? badge(item.decision.signal, item.decision.urgent ? "red" : "")
+        : null,
     );
-    const why = detail("Почему эта новость", list(item.reasons));
+    const why = detail("Основания отбора и приоритет", list(item.reasons));
     why.append(
       p(
         "Приоритет " +
@@ -923,7 +916,7 @@ function renderNews(container) {
     c.append(why);
     const actions = node("div", "news-actions");
     const analyze = button(
-      "Разобрать для " + roles[S.newsRole],
+      "Разобрать для " + roles[S.role],
       async () => {
         try {
           await startResearch(
@@ -932,11 +925,12 @@ function renderNews(container) {
               "» может повлиять на " +
               companyName() +
               " и что стоит проверить " +
-              roles[S.newsRole] +
+              roles[S.role] +
               "?",
             {
               news_item_id: item.news_id,
-              job_title: roles[S.newsRole],
+              bank_document_id: null,
+              job_title: roles[S.role],
               public_search: true,
             },
           );
@@ -1030,11 +1024,12 @@ function renderNews(container) {
 function updateNewsView() {
   const region = $("#personal-news");
   if (region && S.view === "home") renderNews(region);
+  refreshDecisionOverview();
 }
 async function loadNews(auto = true) {
   const cid = S.company?.company_id;
   if (!cid) return;
-  const role = S.newsRole,
+  const role = S.role,
     days = S.newsDays;
   clearTimeout(S.newsPoll);
   try {
@@ -1046,11 +1041,7 @@ async function loadNews(auto = true) {
         "&days=" +
         days,
     );
-    if (
-      cid !== S.company?.company_id ||
-      role !== S.newsRole ||
-      days !== S.newsDays
-    )
+    if (cid !== S.company?.company_id || role !== S.role || days !== S.newsDays)
       return;
     S.news = result;
     updateNewsView();
@@ -1084,7 +1075,7 @@ async function refreshNews(force = true) {
   try {
     await api("/api/companies/" + encodeURIComponent(cid) + "/news/refresh", {
       method: "POST",
-      body: JSON.stringify({ role: S.newsRole, force }),
+      body: JSON.stringify({ role: S.role, force }),
     });
     if (cid === S.company?.company_id) await loadNews(false);
   } catch (error) {
@@ -1138,9 +1129,11 @@ async function startResearch(question, extra = {}) {
   try {
     const request = {
       company_id: company,
+      role: S.role,
       question,
       job_title: S.me?.job_title || ROLES[S.role],
       public_search: S.draft.public,
+      bank_document_id: S.draft.bankDocumentId || null,
       ...extra,
     };
     const job = await api("/api/research", {
@@ -1150,7 +1143,6 @@ async function startResearch(question, extra = {}) {
     });
     if (S.company.company_id !== company) return;
     S.job = job;
-    S.role = roleFor(request.job_title);
     S.view = "research";
     S.draft = {
       question: "",
@@ -1346,24 +1338,11 @@ function renderResearch(main) {
   main.append(c);
 }
 
-function roleTabs(views, onChange) {
-  const tabs = node("div", "role-tabs");
-  tabs.setAttribute("role", "tablist");
-  tabs.setAttribute("aria-label", "Роль для просмотра вывода");
-  for (const view of views) {
-    const b = button(
-      ROLES[view.role] || view.role,
-      () => {
-        S.role = view.role;
-        onChange();
-      },
-      "role-tab" + (S.role === view.role ? " active" : ""),
-    );
-    b.setAttribute("role", "tab");
-    b.setAttribute("aria-selected", String(S.role === view.role));
-    tabs.append(b);
-  }
-  return tabs;
+function roleTabs() {
+  return p(
+    "Текущая роль: " + activeRoleName() + ". Выбор меняется в профиле сверху.",
+    "caption",
+  );
 }
 function renderResult(main, j) {
   const r = j.result;
@@ -1410,9 +1389,14 @@ function renderResult(main, j) {
         j.status === "PARTIAL" ? "Есть ограничения" : "Готово",
         j.status === "PARTIAL" ? "amber" : "green",
       ),
+      r.synthetic_context ? badge("Тестовый контекст", "amber") : null,
       node("span", "caption", date(r.as_of)),
     ),
+    node("h2", "", "Главный вывод"),
     p(r.summary, "result-summary"),
+    r.narrative?.main_conclusion.condition
+      ? p("Условие: " + r.narrative.main_conclusion.condition, "condition")
+      : null,
     node(
       "div",
       "result-state",
@@ -1456,32 +1440,47 @@ function renderResult(main, j) {
     ),
   );
   main.append(summary);
+  renderNarrative(main, j);
   const roleCard = card();
   const views = r.role_views;
-  const active = views.find((v) => v.role === S.role) || views[0];
-  if (active) S.role = active.role;
+  const active = views.find((v) => v.role === S.role);
   add(
     roleCard,
     node("span", "eyebrow", "ДЛЯ ВАШЕЙ РОЛИ"),
     roleTabs(views, render),
     node("h2", "", active?.focus || "Следующий шаг"),
   );
+  if (!active)
+    roleCard.append(
+      p(
+        "В этом сохранённом разборе нет отдельного среза для выбранной роли. Создайте новое исследование для актуального профиля.",
+        "fine-print",
+      ),
+    );
   if (active)
     add(
       roleCard,
       p(active.interpretation),
       list(active.actions, "action-list", true),
     );
-  main.append(
-    add(
-      node("div", "section-heading"),
-      node("h2", "", "Что проверить в первую очередь"),
-    ),
-    roleCard,
-  );
-  main.append(
-    add(node("div", "section-heading"), node("h2", "", "На чём основан вывод")),
-  );
+  if (!r.narrative || r.narrative.role !== S.role)
+    main.append(
+      add(
+        node("div", "section-heading"),
+        node("h2", "", "Проверки для текущей роли"),
+      ),
+      roleCard,
+    );
+  const foundations = r.narrative
+    ? detail("Проверенные механизмы и исходные опоры")
+    : node("div", "stack");
+  if (!r.narrative)
+    main.append(
+      add(
+        node("div", "section-heading"),
+        node("h2", "", "На чём основан вывод"),
+      ),
+    );
   const sorted = r.findings
     .filter((f) => f.kind !== "bank_view")
     .sort(
@@ -1530,8 +1529,9 @@ function renderResult(main, j) {
       add(d, node("blockquote", "quote", q.quote), sourceCaption(s));
     });
     c.append(d);
-    main.append(c);
+    foundations.append(c);
   });
+  main.append(foundations);
   const gaps = card();
   gaps.id = "result-gaps";
   gaps.append(node("h2", "", "Границы вывода"));
@@ -1583,7 +1583,7 @@ function renderResult(main, j) {
     try {
       await startResearch(input.value, {
         parent_id: j.run_id,
-        job_title: j.job_title,
+        job_title: activeRoleName(),
       });
     } catch (error) {
       report(error);
@@ -1717,6 +1717,8 @@ function traceDetails(j) {
       plan: "Выбран следующий шаг",
       tool_completed: "Получены источники",
       verification: "Проверен вывод",
+      narrative_validation: "Проверены опоры связного исследования",
+      narrative_revision: "Уточнена аргументация после проверки",
       replan: "План изменён после проверки",
       published: "Вывод опубликован",
       question_created: "Запрошено уточнение",
@@ -1758,6 +1760,7 @@ function exportReport(j) {
     r.summary,
     "",
   ];
+  exportNarrative(lines, r.narrative);
   for (const f of r.findings) {
     lines.push("## " + f.text, "", f.why_company, "", f.consequence, "");
     if (f.condition) lines.push("Условие: " + f.condition, "");
@@ -1835,63 +1838,7 @@ function renderCompany(main) {
     );
   const left = node("div", "stack"),
     right = node("aside", "stack");
-  if (S.snapshot.writable) {
-    const c = card();
-    add(
-      c,
-      node("h2", "", "О компании"),
-      p(
-        "Кратко опишите бизнес, рынки и задачу. Агент будет считать это сведениями от вас.",
-        "fine-print",
-      ),
-    );
-    const form = node("form"),
-      description = node("textarea");
-    description.id = "company-description";
-    description.rows = 5;
-    description.maxLength = 5000;
-    description.placeholder = isBank()
-      ? "Например: универсальный банк. Интересуют стоимость фондирования, ликвидность и процентный результат."
-      : "Чем занимается компания, где работает, какие продукты и приоритеты";
-    description.value = S.snapshot.context?.description || "";
-    const website = node("input");
-    website.id = "company-website";
-    website.type = "url";
-    website.placeholder = "https://company.ru";
-    website.maxLength = 300;
-    website.value = S.snapshot.context?.website || "";
-    add(
-      form,
-      field("Описание бизнеса", description),
-      field("Официальный сайт — необязательно", website),
-    );
-    const save = node("button", "button primary", "Сохранить сведения");
-    save.type = "submit";
-    form.append(save);
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      save.disabled = true;
-      try {
-        const cid = S.company.company_id;
-        await api("/api/companies/" + cid + "/context", {
-          method: "PUT",
-          body: JSON.stringify({
-            description: description.value,
-            website: website.value,
-          }),
-        });
-        const snap = await api("/api/companies/" + cid + "/profile");
-        if (S.company.company_id === cid) S.snapshot = snap;
-        toast("Сведения сохранены. Новые исследования учтут изменения.");
-      } catch (error) {
-        report(error);
-      } finally {
-        save.disabled = false;
-      }
-    });
-    c.append(form);
-    left.append(c);
-  }
+  main.append(renderCompanyContext());
   const docs = card();
   add(
     docs,
@@ -1999,7 +1946,7 @@ function renderCompany(main) {
   }
   add(
     right,
-    contextCard(),
+
     add(
       card(),
       node("h3", "", "Как подготовить материалы"),
@@ -2112,7 +2059,7 @@ function renderFeatures(container) {
     const c = node("div", "feature");
     add(
       c,
-      node("span", "caption", LABELS[f.name] || f.name),
+      node("span", "caption", featureLabel(f)),
       node("div", "feature-value", featureValue(f)),
       node(
         "small",
@@ -2156,7 +2103,7 @@ function showFeature(f) {
         "fine-print",
       ),
     );
-  modal(LABELS[f.name] || f.name, content);
+  modal(featureLabel(f), content);
 }
 async function uploadFiles(files) {
   if (S.uploading || !files?.length) return;
@@ -2241,7 +2188,7 @@ function renderLibrary(main) {
   main.append(
     heading(
       "Материалы банка",
-      "Исходные материалы кейса с датами и ссылками на оригиналы.",
+      "Подборка для " + companyName() + ", роль — " + activeRoleName() + ".",
     ),
   );
   main.append(
@@ -2252,6 +2199,19 @@ function renderLibrary(main) {
   const grid = node("div", "bank-grid");
   for (const d of S.library.bank_documents || []) {
     const c = card("bank-card");
+    c.dataset.recommended = String(Boolean(d.relevance?.recommended));
+    if (d.relevance)
+      c.append(
+        badge(
+          d.relevance.recommended
+            ? "Подобрано для вас"
+            : "Связь требует проверки",
+          d.relevance.recommended ? "green" : "",
+        ),
+        node("h4", "", "Чем полезен этот материал"),
+        p(d.relevance.use),
+        p(d.relevance.reasons.join(". "), "fine-print"),
+      );
     add(
       c,
       badge(
@@ -2272,6 +2232,7 @@ function renderLibrary(main) {
               "Как выводы материала «" +
               d.title +
               "» могут относиться к нашей компании с учётом даты публикации?";
+            S.draft.bankDocumentId = d.document_id;
             S.job = null;
             go("research");
           },
@@ -2281,10 +2242,25 @@ function renderLibrary(main) {
     );
     grid.append(c);
   }
+  const recommended = node("div", "bank-grid"),
+    others = node("div", "bank-grid");
+  for (const child of [...grid.children])
+    (child.dataset.recommended === "true" ? recommended : others).append(child);
   main.append(
-    add(node("div", "section-heading"), node("h2", "", "Библиотека кейса")),
-    grid,
+    add(
+      node("div", "section-heading"),
+      node("h2", "", "Рекомендуем по вашим задачам"),
+    ),
   );
+  if (recommended.children.length) main.append(recommended);
+  else
+    main.append(
+      box(
+        "Для текущего контекста релевантность отдельных материалов пока не подтверждена. Уточните приоритеты компании.",
+      ),
+    );
+  if (others.children.length)
+    main.append(detail("Другие материалы и исторические обзоры", others));
   const c = card();
   add(
     c,
@@ -2511,36 +2487,67 @@ function renderLegacy(main) {
   );
 }
 
-async function selectCompany(id) {
+async function selectCompany(id, persist = true) {
+  if (S.selecting) throw new Error("personalization_busy");
+  S.selecting = true;
   const epoch = ++S.epoch;
-  clearTimeout(S.poll);
-  clearTimeout(S.docPoll);
-  clearTimeout(S.newsPoll);
-  S.news = null;
-  S.newsExpanded = false;
-  S.job = null;
-  S.legacy = null;
-  S.legacySources = null;
-  S.draft = { question: "", news: "", urls: "", public: true };
-  const companies = S.companies;
-  const company = companies.find((x) => x.company_id === id);
-  if (!company) throw new Error("access_denied");
-  S.company = company;
-  S.draft.question = defaultQuestion();
-  const encoded = encodeURIComponent(id);
-  const result = await Promise.all([
-    api("/api/companies/" + encoded + "/profile"),
-    api("/api/companies/" + encoded + "/documents"),
-    api("/api/research?company_id=" + encoded),
-    api("/api/runs?company_id=" + encoded),
-    api("/api/companies/" + encoded + "/connections"),
-  ]);
-  if (epoch !== S.epoch) return;
-  [S.snapshot, S.docs, S.history, S.legacyHistory, S.connections] = result;
-  S.view = "home";
-  render();
-  pollDocuments(id);
-  loadNews(true);
+  try {
+    clearTimeout(S.contextPoll);
+    S.contextChat = null;
+    S.contextDraft = "";
+    S.contextError = null;
+    S.contextSending = false;
+    clearTimeout(S.poll);
+    clearTimeout(S.docPoll);
+    clearTimeout(S.newsPoll);
+    S.news = null;
+    S.newsExpanded = false;
+    S.job = null;
+    S.legacy = null;
+    S.legacySources = null;
+    S.draft = { question: "", news: "", urls: "", public: true };
+    const companies = S.companies;
+    const company = companies.find((x) => x.company_id === id);
+    if (!company) throw new Error("access_denied");
+    if (persist) {
+      await api("/api/me/preferences", {
+        method: "PUT",
+        body: JSON.stringify({
+          company_id: id,
+          role: S.role,
+          job_title: activeRoleName(),
+        }),
+      });
+      if (epoch !== S.epoch) return;
+      S.me.selected_company_id = id;
+    }
+    S.company = company;
+    S.snapshot = null;
+    S.docs = [];
+    S.history = [];
+    S.connections = null;
+    render();
+    S.draft.question = defaultQuestion();
+    const encoded = encodeURIComponent(id);
+    const result = await Promise.all([
+      api("/api/companies/" + encoded + "/profile"),
+      api("/api/companies/" + encoded + "/documents"),
+      api("/api/research?company_id=" + encoded),
+      api("/api/runs?company_id=" + encoded),
+      api("/api/companies/" + encoded + "/connections"),
+      api("/api/library?company_id=" + encoded),
+    ]);
+    if (epoch !== S.epoch) return;
+    [S.snapshot, S.docs, S.history, S.legacyHistory, S.connections, S.library] =
+      result;
+    S.view = "home";
+    render();
+    pollDocuments(id);
+    loadNews(true);
+    loadContextConversation();
+  } finally {
+    if (epoch === S.epoch) S.selecting = false;
+  }
 }
 function switchCompany() {
   const content = node("div"),
@@ -2641,7 +2648,12 @@ function switchCompany() {
 }
 function quickKey() {
   return (
-    "alfa-quick:" + (S.me?.user_id || "local") + ":" + S.company.company_id
+    "alfa-quick:" +
+    (S.me?.user_id || "local") +
+    ":" +
+    S.company.company_id +
+    ":" +
+    S.role
   );
 }
 function quickSettings(questions) {
@@ -2682,35 +2694,7 @@ function quickSettings(questions) {
   modal("Ваши быстрые вопросы", content);
 }
 function showAccount() {
-  const content = node("div");
-  for (const [label, value] of [
-    ["Имя и фамилия", S.me.full_name],
-    ["Компания при входе", S.me.company_name],
-    ["Должность", S.me.job_title],
-  ])
-    add(content, p(label, "caption"), p(value));
-  content.append(
-    box(
-      "Роль определяет содержание вывода. Она не даёт полномочий на документы других пользователей. В этом демо вход действует 12 часов.",
-    ),
-  );
-  const form = node("form");
-  form.method = "post";
-  form.action = "/auth/logout";
-  const b = node("button", "button small", "Выйти");
-  b.type = "submit";
-  form.append(b);
-  content.append(
-    detail(
-      "Выйти из рабочего пространства",
-      p(
-        "Новый вход создаст новое пространство. Сначала скачайте важные результаты.",
-        "fine-print",
-      ),
-      form,
-    ),
-  );
-  modal("Профиль сотрудника", content);
+  profileSettings();
 }
 function help() {
   modal(
@@ -2751,7 +2735,6 @@ $("#mobile-menu").addEventListener("click", () => {
   const open = $("#sidebar").classList.toggle("open");
   $("#mobile-menu").setAttribute("aria-expanded", String(open));
 });
-$("#company-switch").addEventListener("click", switchCompany);
 $("#account").addEventListener("click", showAccount);
 $("#help").addEventListener("click", help);
 $("#close-dialog").addEventListener("click", closeModal);
@@ -2780,8 +2763,7 @@ async function init() {
       workspace,
       library,
       companies,
-      role: roleFor(me.job_title),
-      newsRole: me.role || roleFor(me.job_title),
+      role: me.role || roleFor(me.job_title),
     });
     $("#user-name").textContent = me.full_name;
     $("#user-role").textContent = me.job_title;
@@ -2796,7 +2778,9 @@ async function init() {
       $("#storage-notice").hidden = false;
     }
     const first =
-      companies.find((x) => x.company_id === me.company_id) ||
+      companies.find(
+        (x) => x.company_id === (me.selected_company_id || me.company_id),
+      ) ||
       companies.find((x) => x.writable && x.source === "company_upload") ||
       companies[0];
     if (first) await selectCompany(first.company_id);

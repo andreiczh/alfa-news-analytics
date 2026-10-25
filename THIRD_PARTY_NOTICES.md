@@ -41,3 +41,7 @@ Open-web discovery uses Bing's public search RSS and bounded reads of user-selec
 Development-only formatting: Prettier 3.6.2 (MIT). Browser validation: Playwright/Chromium (Apache-2.0 and Chromium third-party licenses). These are development tools, not agent components or runtime dependencies in the application image.
 
 Miro was rechecked through the supplied public board on 23 October 2026. Fifteen textual objects were recovered from that board; embedded screenshots are design references, not bank balances, supplied client profiles or a new organizer regulation.
+
+## Version 0.5 additions
+
+No runtime dependency, external AI provider or additional model was added. The context interview and coherent research narrative use the existing organizer-approved gateway/model. Personalization, reviewed context, scenario/evidence contracts and ranking rules are team-owned Python/JavaScript. The user-supplied product revision packet is retained as team requirements with its source hash; it is not an organizer rulebook. Live QA company goals are explicitly synthetic and do not describe Alfa-Bank's internal plans or financials.

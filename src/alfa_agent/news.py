@@ -101,7 +101,7 @@ class NewsService:
                 previous_context = json.loads(old["context_json"])
                 same_profile = all(
                     context.get(k) == previous_context.get(k)
-                    for k in ("name", "industry", "exposure_topics", "website")
+                    for k in ("name", "industry", "exposure_topics", "website", "context_revision")
                 )
                 if old["status"] in {"QUEUED", "RUNNING"} or (
                     same_profile and age < (60 if force or old["status"] == "FAILED" else REFRESH_SECONDS)
@@ -123,7 +123,7 @@ class NewsService:
 
     def refresh(self, company_id, role="cfo", force=False):
         self.service.authorize_company(company_id)
-        role = role if role in {"cfo", "treasurer", "ceo", "coo", "cco", "other"} else role_for(role)
+        role = role if role in {"cfo", "treasurer", "ceo", "coo", "cco", "cmo", "other"} else role_for(role)
         context = self.context(company_id)
         self._enqueue(self.service.tenant, company_id, context, role, force)
         return self.get(company_id, role=role)
@@ -146,14 +146,22 @@ class NewsService:
         previous_context = json.loads(good["context_json"]) if good else {}
         profile_changed = any(
             context.get(k) != previous_context.get(k)
-            for k in ("name", "industry", "exposure_topics", "website")
+            for k in ("name", "industry", "exposure_topics", "website", "context_revision")
         )
         failed_age = (
             (utcnow() - datetime.fromisoformat(row["finished_at"] or row["created_at"])).total_seconds()
             if row and row["status"] == "FAILED"
             else None
         )
+        from .decision_support import overview_brief
+
+        brief = overview_brief(items, context, role)
+        brief["last_research"] = self.service.research.latest_decision_memo(
+            company_id, role, context.get("profile_version"), context.get("context_revision", 0)
+        )
         return {
+            "brief": brief,
+            "context_revision": context.get("context_revision", 0),
             "status": row["status"] if row else "EMPTY",
             "job_id": row["id"] if row else None,
             "company_id": company_id,

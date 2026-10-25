@@ -101,6 +101,41 @@ class ResearchGateway:
                 value["findings"][0]["anchor_ids"] = ["a777"]
                 self.bad_number = False
             return json.dumps(value, ensure_ascii=False)
+        if stage == "research_narrative":
+            ledger = payload["evidence_ledger"]
+            anchor = next((a for a in ledger if a["source_id"] == "input_news"), ledger[0])
+            fields = payload["company"].get("confirmed_context", {}).get("fields", {})
+            context_anchor = next(
+                (a for a in ledger if any("_context_" + key + "_" in a["source_id"] for key in fields)), None
+            )
+            refs = list(
+                dict.fromkeys(
+                    [anchor["anchor_id"], *([context_anchor["anchor_id"]] if context_anchor else [])]
+                )
+            )
+            point = {
+                "kind": "interpretation",
+                "text": "Изменение условий требует проверки договоров и потребностей компании.",
+                "anchor_ids": refs,
+                "condition": "При наличии соответствующей экспозиции и сохранении условий источника.",
+            }
+            return json.dumps(
+                {
+                    "title": "Проверить условия и применимость события к компании",
+                    "main_conclusion": point,
+                    "situation": [point],
+                    "drivers": [point],
+                    "company_impact": [point],
+                    "risks": [point],
+                    "opportunities": [],
+                    "recommendations": [point],
+                    "forecast_status": "insufficient_evidence",
+                    "forecast_limit": "Недостаточно данных для прогноза направления и финансового эффекта.",
+                    "scenarios": [],
+                    "context_keys": list(fields)[:1],
+                },
+                ensure_ascii=False,
+            )
         if stage == "research_verify":
             approve = not self.reject_once
             self.reject_once = False
@@ -139,7 +174,7 @@ def test_unseen_non_rate_news_runs_with_evidence_and_frozen_profile(service):
     asyncio.run(ResearchEngine(service.research, gateway).once())
     result = service.research.get(job["run_id"])
     assert result["status"] == "PARTIAL" and result["verification"]["passed"]
-    assert result["tool_calls"] == 2 and result["llm_calls"] == 3
+    assert result["tool_calls"] == 2 and result["llm_calls"] == 4
     assert result["result"]["findings"][0]["citations"][0]["quote"] == NEWS
     assert "Первоначальное описание" in json.dumps(gateway.payloads, ensure_ascii=False)
     assert "Изменённый контекст" not in json.dumps(gateway.payloads, ensure_ascii=False)
@@ -364,3 +399,45 @@ def test_research_api_owned_history_favorite_feedback_and_export(service):
             == 201
         )
         assert client.get("/api/research/" + job["run_id"] + "/export").status_code == 200
+
+
+def test_overview_memo_cache_respects_role_and_profile_versions(service):
+    request = request_for(service)
+    job = service.research.create(request, "memo-cache")
+    asyncio.run(ResearchEngine(service.research, ResearchGateway()).once())
+    result = service.research.get(job["run_id"])
+    assert result["result"]["narrative"]
+    version = result["result"]["profile_version"]
+    assert (
+        service.research.latest_decision_memo(request.company_id, "cfo", version, 0)["run_id"]
+        == job["run_id"]
+    )
+    assert service.research.latest_decision_memo(request.company_id, "cmo", version, 0) is None
+    assert service.research.latest_decision_memo(request.company_id, "cfo", version + 1, 0) is None
+    assert service.research.latest_decision_memo(request.company_id, "cfo", version, 1) is None
+
+
+def test_selected_bank_material_does_not_pull_structured_claims_from_another_pdf(service):
+    service.research.bank = BankLibrary(Path(__file__).parents[1])
+    request = request_for(service).model_copy(
+        update={
+            "bank_document_id": "bank_case_09",
+            "question": "Как условия ставок могут повлиять на компанию по выбранному банковскому материалу?",
+        }
+    )
+    job = service.research.create(request, "selected-bank-material")
+    asyncio.run(ResearchEngine(service.research, ResearchGateway()).once())
+    sources = service.research.get(job["run_id"])["sources"]
+    excerpts = [s for s in sources if s["kind"] == "bank_excerpt"]
+    assert excerpts and {s["document_id"] for s in excerpts} == {"bank_case_09"}
+    assert not any(s["kind"] == "bank_claim" for s in sources)
+
+
+def test_explicit_global_role_is_not_reinferred_from_custom_job_title(service):
+    request = request_for(service).model_copy(
+        update={"role": "other", "job_title": "Финансовый директор по маркетингу"}
+    )
+    job = service.research.create(request, "global-role-authoritative")
+    asyncio.run(ResearchEngine(service.research, ResearchGateway()).once())
+    result = service.research.get(job["run_id"])
+    assert result["result"]["narrative"]["role"] == "other"

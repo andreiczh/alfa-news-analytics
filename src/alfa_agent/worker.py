@@ -8,6 +8,7 @@ from .service import Service
 from .settings import Settings
 from .ingestion import DocumentProcessor
 from .research import ResearchEngine
+from .company_dialogue import ContextEngine
 
 
 async def work(once=False, settings=None):
@@ -35,11 +36,14 @@ async def work(once=False, settings=None):
     engine = Engine(settings, service.store, service.corpus, gateway)
     processor = DocumentProcessor(service.workspace, gateway)
     research = ResearchEngine(service.research, gateway)
+    context = ContextEngine(service.context_dialogue, gateway)
     # Public IO has no model calls and must not block the paid research queue.
     news_task = asyncio.create_task(service.news.work_loop())
     try:
         while True:
-            job = await processor.once()
+            job = await context.once()
+            if not job:
+                job = await processor.once()
             if not job:
                 job = await research.once()
             if not job:

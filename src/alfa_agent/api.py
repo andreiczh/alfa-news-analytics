@@ -25,6 +25,8 @@ from .workspace import UploadError, MAX_FILE_BYTES
 from .access import COOKIE, SESSION_SECONDS, issue_session, session_principal, signing_key
 from .identity import current_principal, create_principal, restore_principal, PUBLIC_DEMO_RUNS
 from .research import ResearchRequest, ResearchAnswer
+from .personalization import PreferencesUpdate, ROLE_NAMES
+from .company_dialogue import ContextMessage, ContextConfirm
 from . import __version__
 
 
@@ -57,7 +59,7 @@ class ResearchFavorite(BaseModel):
 
 class NewsRefresh(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    role: str = Field(default="cfo", pattern="^(cfo|treasurer|ceo|coo|cco|other)$")
+    role: str | None = Field(default=None, pattern="^(cfo|treasurer|ceo|coo|cco|cmo|other)$")
     force: bool = False
 
 
@@ -219,6 +221,7 @@ def create_app(settings=None):
     @app.get("/api/me")
     async def me():
         principal = current_principal.get()
+        prefs = app.state.service.personalization.get()
         return {
             "authenticated": bool(principal),
             **(
@@ -228,11 +231,19 @@ def create_app(settings=None):
                     "full_name": "Участник команды",
                     "company_id": None,
                     "company_name": "",
-                    "role": "cfo",
-                    "job_title": "Финансовый директор",
+                    "job_title": prefs["job_title"],
+                    "role": prefs["role"],
                 }
             ),
+            "selected_company_id": prefs["company_id"],
+            "role": prefs["role"],
+            "job_title": prefs["job_title"],
+            "role_names": ROLE_NAMES,
         }
+
+    @app.put("/api/me/preferences")
+    async def preferences(payload: PreferencesUpdate):
+        return app.state.service.personalization.save(payload)
 
     app.mount("/static", StaticFiles(directory=PACKAGE / "static"), name="static")
 
@@ -276,6 +287,18 @@ def create_app(settings=None):
             if q.casefold() in x["label"].casefold() or q.casefold() in x["company_id"].casefold()
         ]
         items = custom + demos + cases
+        selected = service.personalization.get()["company_id"]
+        if (
+            not q
+            and selected
+            and not any(x["company_id"] == selected for x in items)
+            and service.workspace.case.exists(selected)
+        ):
+            items.extend(
+                x
+                for x in service.workspace.case.search(selected, limit=5)["items"]
+                if x["company_id"] == selected
+            )
         for item in items:
             item["writable"] = service.workspace.owned(item["company_id"])
         return items
@@ -328,14 +351,18 @@ def create_app(settings=None):
     @app.get("/api/companies/{company_id}/news")
     async def company_news(
         company_id: str,
-        role: str = Query(default="cfo", pattern="^(cfo|treasurer|ceo|coo|cco|other)$"),
+        role: str | None = Query(default=None, pattern="^(cfo|treasurer|ceo|coo|cco|cmo|other)$"),
         days: int = Query(default=7, ge=1, le=90),
     ):
-        return app.state.service.news.get(company_id, role, days)
+        return app.state.service.news.get(
+            company_id, role or app.state.service.personalization.get()["role"], days
+        )
 
     @app.post("/api/companies/{company_id}/news/refresh", status_code=202)
     async def refresh_news(company_id: str, payload: NewsRefresh):
-        return app.state.service.news.refresh(company_id, payload.role, payload.force)
+        return app.state.service.news.refresh(
+            company_id, payload.role or app.state.service.personalization.get()["role"], payload.force
+        )
 
     @app.post("/api/companies/{company_id}/news/feedback", status_code=201)
     async def news_feedback(company_id: str, payload: NewsFeedback):
@@ -348,6 +375,42 @@ def create_app(settings=None):
         service.authorize_company(company_id)
         service.workspace.save_context(company_id, payload.description, payload.website)
         return {"saved": True}
+
+    @app.get("/api/companies/{company_id}/context/dialogue")
+    async def context_history(company_id: str):
+        return app.state.service.context_dialogue.history(company_id)
+
+    @app.post("/api/companies/{company_id}/context/dialogue", status_code=202)
+    async def context_message(
+        company_id: str,
+        payload: ContextMessage,
+        idempotency_key: str = Header(alias="Idempotency-Key", min_length=8, max_length=100),
+    ):
+        return app.state.service.context_dialogue.create(company_id, payload, idempotency_key)
+
+    @app.post("/api/companies/{company_id}/context/dialogue/{turn_id}/confirm")
+    async def confirm_context(company_id: str, turn_id: str, payload: ContextConfirm):
+        return app.state.service.context_dialogue.confirm(company_id, turn_id, payload)
+
+    @app.post("/api/companies/{company_id}/context/dialogue/{turn_id}/cancel")
+    async def cancel_context(company_id: str, turn_id: str):
+        return app.state.service.context_dialogue.cancel(company_id, turn_id)
+
+    @app.put("/api/companies/{company_id}/context/fields")
+    async def edit_context(company_id: str, payload: ContextConfirm):
+        return app.state.service.context_dialogue.save_fields(company_id, payload)
+
+    @app.put("/api/companies/{company_id}")
+    async def rename_company(company_id: str, payload: NewCompany):
+        service = app.state.service
+        service.authorize_company(company_id)
+        service.workspace.require_writable(company_id)
+        if not service.workspace.custom_exists(company_id):
+            raise AccessDenied("create_own_company_first")
+        with service.store.connection() as db:
+            db.execute("UPDATE custom_companies SET name=? WHERE id=?", (payload.name.strip(), company_id))
+            db.execute("UPDATE company_versions SET version=version+1 WHERE company_id=?", (company_id,))
+        return {"company_id": company_id, "label": payload.name.strip()}
 
     @app.get("/api/companies/{company_id}/connections")
     async def connections(company_id: str):
@@ -413,10 +476,21 @@ def create_app(settings=None):
         return service.workspace.set_file_active(company_id, document_id, True)
 
     @app.get("/api/library")
-    async def library():
-        corpus = app.state.service.corpus
+    async def library(company_id: str | None = None):
+        service = app.state.service
+        corpus = service.corpus
+        prefs = service.personalization.get()
+        selected = company_id or prefs["company_id"]
+        documents = service.research.bank.summary()
+        if selected:
+            service.authorize_company(selected)
+            documents = service.research.bank.recommend(
+                service.workspace.snapshot(selected, corpus), prefs["role"]
+            )
         return {
-            "bank_documents": app.state.service.research.bank.summary(),
+            "company_id": selected,
+            "role": prefs["role"],
+            "bank_documents": documents,
             "documents": [
                 d.model_dump(mode="json") for d in corpus.documents.values() if d.tenant_company_id is None
             ],

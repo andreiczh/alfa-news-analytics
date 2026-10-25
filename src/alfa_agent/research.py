@@ -23,6 +23,13 @@ from .news_sources import article_matches, article_publication
 from .settings import utcnow
 from .storage import Conflict, NotFound, new_id
 from .research_rules import RULES, BANK_ROLES, COMPANY_ROLES
+from .narrative import (
+    DecisionNarrative,
+    validate_narrative,
+    bind_narrative,
+    decision_schema,
+    revision_details,
+)
 
 
 class Strict(BaseModel):
@@ -32,11 +39,13 @@ class Strict(BaseModel):
 class ResearchRequest(Strict):
     company_id: str = Field(max_length=100)
     question: str = Field(min_length=12, max_length=1500)
-    job_title: str = Field(default="CFO", min_length=2, max_length=120)
+    job_title: str | None = Field(default=None, min_length=2, max_length=120)
+    role: Literal["cfo", "treasurer", "ceo", "coo", "cco", "cmo", "other"] | None = None
     public_search: bool = True
     source_urls: list[str] = Field(default_factory=list, max_length=3)
     news_text: str = Field(default="", max_length=10000)
     parent_id: str | None = Field(default=None, max_length=100)
+    bank_document_id: str | None = Field(default=None, max_length=100)
     news_item_id: str | None = Field(default=None, pattern=r"^news_[a-f0-9]{24}$")
 
 
@@ -85,7 +94,7 @@ class Finding(Strict):
 
 
 class ResearchRole(Strict):
-    role: Literal["cfo", "treasurer", "ceo", "coo", "cco"]
+    role: Literal["cfo", "treasurer", "ceo", "coo", "cco", "cmo"]
     focus: str = Field(min_length=5, max_length=150)
     interpretation: str = Field(min_length=10, max_length=600)
     actions: list[str] = Field(min_length=1, max_length=3)
@@ -96,7 +105,8 @@ class ResearchDraft(Strict):
     title: str = Field(min_length=10, max_length=160)
     summary: str = Field(min_length=20, max_length=850)
     findings: list[Finding] = Field(min_length=1, max_length=6)
-    role_views: list[ResearchRole] = Field(min_length=1, max_length=5)
+    role_views: list[ResearchRole] = Field(min_length=1, max_length=6)
+    narrative: dict | None = None
     missing_data: list[str] = Field(default_factory=list, max_length=7)
     limitations: list[str] = Field(default_factory=list, max_length=7)
     follow_up_questions: list[str] = Field(default_factory=list, max_length=3)
@@ -149,6 +159,21 @@ def selection_schema(ledger, bank_company):
         a["anchor_id"] for a in ledger if a["kind"] == "bank_claim"
     ]
     return schema
+
+
+def topic_for_question(question):
+    for topic, pattern in (
+        ("rates", r"ставк|процент|марж|фондир|ликвид"),
+        ("commodities", r"золот|нефт|металл|сталь|сырьев|сырьё"),
+        ("competitors", r"конкурент|позиционир"),
+        ("inflation", r"инфляц|затрат|тариф|себестоим"),
+        ("demand", r"спрос|потребл|продаж|клиент|маркет|сегмент"),
+        ("regulation", r"регулир|закон|санкц|норматив"),
+        ("labor", r"сотрудник|персонал|зарплат|труд"),
+    ):
+        if re.search(pattern, question, re.I):
+            return topic
+    return "company"
 
 
 def assemble_research(selection, ledger, request, snapshot):
@@ -316,6 +341,10 @@ def assemble_research(selection, ledger, request, snapshot):
         and not re.search(r"не предостав|нет данн|неизвест|не указан", f.get("text_value") or "", re.I)
     }
     missing = list(dict.fromkeys(label for name, label in needs if name not in known))[:7]
+    if snapshot.get("context", {}).get("synthetic"):
+        limitations.append(
+            "Профиль компании содержит явно тестовый контекст; он не является внутренними данными реального банка или клиента."
+        )
     if not any(a["kind"] == "public_page" for a in ledger):
         limitations.append(
             "Свежие внешние страницы не прочитаны; исследование ограничено материалами кейса и компании."
@@ -419,9 +448,11 @@ def evidence_ledger(sources, question):
         ),
         reverse=True,
     )
-    context = next((s for s in sources if s["kind"] == "company_evidence"), None)
-    if context:
-        ranked_sources = [context] + [s for s in ranked_sources if s is not context]
+    contexts = [s for s in sources if s["kind"] == "company_evidence" and s.get("context_key")]
+    order = {"priorities": 0, "goals": 1, "risks": 2, "targets": 3, "commercial_priorities": 4}
+    contexts.sort(key=lambda source: order.get(source.get("context_key"), 5))
+    leading = contexts[:4] or [s for s in sources if s["kind"] == "company_evidence"][:1]
+    ranked_sources = leading + [s for s in ranked_sources if s not in leading]
     for source in ranked_sources:
         if source["kind"] in {"url_to_read", "search_lead"}:
             continue
@@ -443,6 +474,7 @@ def evidence_ledger(sources, question):
             ledger.append(
                 {
                     "anchor_id": "a" + str(len(ledger) + 1),
+                    "context_key": source.get("context_key"),
                     "source_id": source["source_id"],
                     "quote": quote,
                     "kind": source["kind"],
@@ -520,6 +552,12 @@ def validate_draft(draft, sources, *, bank_company=False):
             issues.append("interpretation_needs_condition:" + finding.finding_id)
         if finding.statement_type == "forecast" and finding.kind == "source_fact":
             issues.append("forecast_not_a_fact:" + finding.finding_id)
+    if draft.narrative:
+        for anchor in draft.narrative.get("evidence", []):
+            source = by_id.get(anchor.get("source_id"))
+            if not source or normalized(anchor.get("quote", "")) not in normalized(source.get("text", "")):
+                issues.append("narrative_quote_not_in_source")
+            quoted.append(anchor.get("quote", ""))
     if not numbers(draft.title + " " + draft.summary) <= numbers(" ".join(quoted)):
         issues.append("unsupported_summary_number")
     roles = set()
@@ -602,6 +640,13 @@ class ResearchService:
             (f.get("text_value") for f in snapshot["profile"]["features"] if f["name"] == "company_name"),
             request.company_id,
         )
+        if request.bank_document_id and request.bank_document_id not in {
+            d["document_id"] for d in self.bank.documents
+        }:
+            raise ValueError("unknown_bank_document")
+        prefs = self.service.personalization.get()
+        raw["job_title"] = request.job_title or prefs["job_title"]
+        raw["role"] = request.role or (role_for(request.job_title) if request.job_title else prefs["role"])
         raw.update(
             snapshot_id=snapshot["snapshot_id"],
             as_of=utcnow().isoformat(),
@@ -635,7 +680,7 @@ class ResearchService:
                     "provided_for_current_question": True,
                 }
             )
-        website = self.service.workspace.context(request.company_id)["website"]
+        website = snapshot.get("context", {}).get("website", "")
         if website and website not in request.source_urls:
             if not any(s.get("url") == website for s in sources):
                 sources.append(
@@ -699,6 +744,37 @@ class ResearchService:
             run_id, "PLAN", "queued", {"company_id": request.company_id, "parent_id": request.parent_id}
         )
         return self.get(run_id)
+
+    def latest_decision_memo(self, company_id, role, profile_version, context_revision):
+        self.service.authorize_company(company_id)
+        with self.store.connection() as db:
+            rows = db.execute(
+                "SELECT id,result_json,created_at FROM research_jobs WHERE tenant=? AND company_id=? AND status IN ('PARTIAL','SUCCEEDED') ORDER BY created_at DESC LIMIT 12",
+                (self.service.tenant, company_id),
+            ).fetchall()
+        for row in rows:
+            if (utcnow() - datetime.fromisoformat(row["created_at"])).total_seconds() > 86400:
+                continue
+            result = json.loads(row["result_json"] or "{}")
+            narrative = result.get("narrative") or {}
+            if (
+                narrative.get("role") != role
+                or narrative.get("context_revision") != context_revision
+                or result.get("profile_version") != profile_version
+            ):
+                continue
+            return {
+                "run_id": row["id"],
+                "title": result["title"],
+                "summary": result["summary"],
+                "as_of": result["as_of"],
+                "forecast_status": narrative["forecast_status"],
+                "forecast_limit": narrative["forecast_limit"],
+                "scenarios": narrative["scenarios"],
+                "context_revision": context_revision,
+                "scope": "Сценарии последнего исследования для текущей роли и версии профиля; исходные предпосылки проверяются в отчёте.",
+            }
+        return None
 
     def _row(self, run_id, *, tenant=None):
         with self.store.connection() as db:
@@ -944,7 +1020,7 @@ class ResearchEngine:
             state["sources"] = list(by_id.values())
 
         def model_context():
-            sources, budget = [], 28000
+            sources, budget = [], 20000
             wanted = terms(request["question"])
             ranked_sources = sorted(
                 state["sources"],
@@ -961,8 +1037,8 @@ class ResearchEngine:
                 budget -= len(item["text"])
                 sources.append(item)
             features = [
-                {**f, "text_value": f.get("text_value", "")[:1800] if f.get("text_value") else None}
-                for f in snapshot["profile"]["features"][:14]
+                {**f, "text_value": f.get("text_value", "")[:700] if f.get("text_value") else None}
+                for f in snapshot["profile"]["features"][:12]
             ]
             return {
                 "question": request["question"],
@@ -972,8 +1048,18 @@ class ResearchEngine:
                     "declared_bank": request["bank_company"],
                     "identity": "Название и роль сообщены пользователем; независимая идентификация не выполнена.",
                     "features": features,
+                    "confirmed_context": {
+                        "revision": snapshot.get("context", {}).get("revision", 0),
+                        "synthetic": snapshot.get("context", {}).get("synthetic", False),
+                        "description": snapshot.get("context", {}).get("description", "")[:1200],
+                        "fields": {
+                            k: {"label": v["label"], "category": v["category"], "value": v["value"][:700]}
+                            for k, v in list(snapshot.get("context", {}).get("fields", {}).items())[:12]
+                        },
+                    },
                 },
                 "job_title": request["job_title"],
+                "role": request.get("role") or role_for(request["job_title"]),
                 "selected_news_source_id": request.get("news_item_id"),
                 "fresh_news_requested": request.get("fresh_news_requested", False),
                 "as_of": request["as_of"],
@@ -1000,6 +1086,8 @@ class ResearchEngine:
                     evidence = sorted(
                         snapshot["evidence"], key=lambda e: len(terms(e["quote"]) & wanted), reverse=True
                     )[:5]
+                    important = [e for e in snapshot["evidence"] if "_context_" in e["evidence_id"]][:8]
+                    evidence = list({e["evidence_id"]: e for e in [*important, *evidence]}.values())[:12]
                     items = []
                     for e in evidence:
                         d = docs[e["document_id"]]
@@ -1012,9 +1100,24 @@ class ResearchEngine:
                                 "published_at": d.get("published_at"),
                                 "page": e.get("page"),
                                 "locator": e.get("locator"),
-                                "text": e["quote"][:3000],
+                                "text": (
+                                    e["quote"]
+                                    if len(e["quote"]) >= 35
+                                    else "Сведения компании, сообщённые пользователем. "
+                                    + e.get("locator", "")
+                                    + ": "
+                                    + e["quote"]
+                                )[:3000],
                                 "review_status": "self_reported_or_case_data",
                                 "document_id": d["document_id"],
+                                "context_key": next(
+                                    (
+                                        key
+                                        for key in snapshot.get("context", {}).get("fields", {})
+                                        if "_context_" + key + "_" in e["evidence_id"]
+                                    ),
+                                    None,
+                                ),
                                 "limitations": "Из источников текущей компании. Юридическая идентичность и сведения клиента независимо не подтверждены.",
                             }
                         )
@@ -1047,9 +1150,10 @@ class ResearchEngine:
                     count = len(items)
                 elif action.tool == "bank":
                     items = self.research.bank.search(
-                        (action.query or request["question"]) + " " + TOPICS[action.topic]
+                        (action.query or request["question"]) + " " + TOPICS[action.topic],
+                        document_id=request.get("bank_document_id"),
                     )
-                    if action.topic == "rates":
+                    if action.topic == "rates" and request.get("bank_document_id") in {None, "bank_case_04"}:
                         for claim in self.service.corpus.claims.values():
                             document = self.service.corpus.documents[claim.document_id]
                             quote = self.service.corpus.evidence[claim.evidence_ids[0]].quote
@@ -1081,7 +1185,7 @@ class ResearchEngine:
                         row["company_id"],
                         row["tenant"],
                         snapshot,
-                        role_for(request["job_title"]),
+                        request.get("role") or role_for(request["job_title"]),
                         action.topic,
                     )
                     for item in items:
@@ -1134,7 +1238,7 @@ class ResearchEngine:
                             tool=required,
                             reason="Обязательная проверка контекста компании и материалов банка",
                             query=request["question"][:350],
-                            topic="rates" if request["bank_company"] else "company",
+                            topic=topic_for_question(request["question"]),
                         )
                     )
             for source in list(state["sources"]):
@@ -1160,7 +1264,7 @@ class ResearchEngine:
                                 tool=required,
                                 reason="Обязательная проверка контекста компании и материалов банка",
                                 query=request["question"][:350],
-                                topic="rates" if request["bank_company"] else "company",
+                                topic=topic_for_question(request["question"]),
                             )
                         )
                 for action in plan.actions:
@@ -1217,7 +1321,71 @@ class ResearchEngine:
                 )
                 try:
                     draft = assemble_research(selected, ledger, request, snapshot)
-                    issues = validate_draft(draft, state["sources"], bank_company=request["bank_company"])
+                    narrative_payload = {
+                        "question": request["question"],
+                        "company": {k: v for k, v in context["company"].items() if k != "features"},
+                        "job_title": request["job_title"],
+                        "role": request["role"],
+                        "as_of": request["as_of"],
+                        "selected_news_source_id": request.get("news_item_id"),
+                        "evidence_ledger": ledger,
+                        "verification_issues": state["issues"],
+                        "draft": {
+                            "findings": [f.model_dump(exclude={"citations"}) for f in draft.findings],
+                            "missing_data": draft.missing_data,
+                            "limitations": draft.limitations,
+                        },
+                    }
+                    for revision in range(2):
+                        narrative = await invoke(
+                            "research_narrative",
+                            DecisionNarrative,
+                            narrative_payload,
+                            decision_schema(ledger, snapshot.get("context", {})),
+                        )
+                        issues = validate_narrative(
+                            narrative, ledger, snapshot.get("context", {}), request["bank_company"]
+                        )
+                        if not issues and request.get("news_item_id"):
+                            anchors = {a["anchor_id"]: a for a in ledger}
+                            refs = [
+                                *narrative.main_conclusion.anchor_ids,
+                                *[aid for point in narrative.situation for aid in point.anchor_ids],
+                            ]
+                            if not any(
+                                anchors[aid]["source_id"] == request["news_item_id"]
+                                for aid in refs
+                                if aid in anchors
+                            ):
+                                issues.append("narrative_selected_news_missing")
+                        audit(
+                            "narrative_validation",
+                            {
+                                "approved": not issues,
+                                "issues": issues,
+                                "unverified_draft": narrative.model_dump(mode="json") if issues else None,
+                                "evidence_ledger": ledger if issues else None,
+                            },
+                        )
+                        if not issues or revision or state["replans"] >= self.settings.max_replans:
+                            break
+                        state["replans"] += 1
+                        narrative_payload.update(
+                            previous_unverified_narrative=narrative.model_dump(mode="json"),
+                            validation_issues=issues,
+                            per_point_constraints=revision_details(narrative, ledger),
+                        )
+                        audit("narrative_revision", {"issues": issues, "number": state["replans"]})
+                        save()
+                    if not issues:
+                        draft.narrative = bind_narrative(
+                            narrative,
+                            ledger,
+                            request.get("role") or role_for(request["job_title"]),
+                            snapshot.get("context", {}).get("revision", 0),
+                        )
+                        draft.title, draft.summary = narrative.title, narrative.main_conclusion.text
+                        issues = validate_draft(draft, state["sources"], bank_company=request["bank_company"])
                 except ValueError as failure:
                     draft, issues = None, [str(failure)]
                 verdict = None
@@ -1280,6 +1448,8 @@ class ResearchEngine:
                 result.update(
                     as_of=request["as_of"],
                     profile_as_of=snapshot["profile"]["as_of"],
+                    profile_version=snapshot["profile"]["version"],
+                    synthetic_context=snapshot.get("context", {}).get("synthetic", False),
                     profile_snapshot_id=request["snapshot_id"],
                     company_name=request["company_name"],
                     job_title=request["job_title"],

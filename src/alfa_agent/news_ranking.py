@@ -124,6 +124,20 @@ ROLE_WEIGHTS = {
         "brand": 22,
         "demand": 28,
     },
+    "cmo": {
+        "rates": 5,
+        "funding": 3,
+        "capital": 12,
+        "earnings": 10,
+        "credit": 5,
+        "fx": 10,
+        "inflation": 20,
+        "operations": 13,
+        "strategy": 23,
+        "products": 29,
+        "brand": 26,
+        "demand": 32,
+    },
     "other": {k: 15 for k in TOPIC_RULES if k != "brand"},
 }
 ROLE_LABELS = {
@@ -132,6 +146,7 @@ ROLE_LABELS = {
     "ceo": "CEO",
     "coo": "COO",
     "cco": "CCO",
+    "cmo": "директора по маркетингу",
     "other": "руководитель",
 }
 PRIMARY_DOMAINS = {
@@ -199,7 +214,30 @@ def company_context(snapshot):
             exposure_topics.add("funding")
         if f["name"] in {"foreign_currency_exposure", "currency_exposure", "export_share", "import_share"}:
             exposure_topics.add("fx")
+    fields = snapshot.get("context", {}).get("fields", {})
+    priority_fields = [
+        f for f in fields.values() if f.get("category") in {"priorities", "strategy", "risks", "finance"}
+    ]
+    priority_topics = set()
+    priority_labels = {}
+    for field in priority_fields:
+        if re.search(r"не отслеж|не интерес|не важ|не планир", field["value"], re.I):
+            continue
+        matched = topics_for({"title": field["value"], "excerpt": ""})
+        priority_topics.update(matched)
+        for topic in matched:
+            priority_labels.setdefault(topic, []).append(field["label"])
+    competitor_text = "\n".join(v["value"] for k, v in fields.items() if "competitor" in k)
+    competitor_text = "\n".join(line.split(":", 1)[-1] for line in competitor_text.splitlines())
+    competitor_text = re.sub(r"\s+и\s+", ",", competitor_text, flags=re.I)
+    competitors = [
+        x.strip(' «»".;') for x in re.split(r"[,;\n]", competitor_text) if 2 <= len(x.strip()) <= 80
+    ]
     return {
+        "priority_topics": sorted(priority_topics),
+        "priority_labels": priority_labels,
+        "competitors": competitors,
+        "context_revision": snapshot.get("context", {}).get("revision", 0),
         "name": name,
         "industry": industry,
         "bank": bank,
@@ -258,7 +296,20 @@ def score_item(item, context, role, now, window_days=7):
         "услуг",
     }
     industry_match = bool(industry_words & {w[:6] for w in re.findall(r"[а-яёa-z]{5,}", title.casefold())})
-    if not direct and not sector and not macro and not industry_match:
+    priority_match = sorted(set(topics) & set(context.get("priority_topics", [])))
+    competitor_match = [
+        c
+        for c in context.get("competitors", [])
+        if len(normalize_name(c)) >= 3 and normalize_name(c) in normalize_name(title)
+    ]
+    if (
+        not direct
+        and not sector
+        and not macro
+        and not industry_match
+        and not priority_match
+        and not competitor_match
+    ):
         return None, "not_company_or_exposure"
     if not topics:
         return None, "no_business_channel"
@@ -282,9 +333,28 @@ def score_item(item, context, role, now, window_days=7):
     elif industry_match:
         components["company"] = 18
         reasons.append("Есть совпадение с основной деятельностью из профиля")
+    elif competitor_match:
+        components["company"] = 14
+        reasons.append("Событие участника рынка из вашего списка наблюдения; прямое влияние нужно проверить")
+    elif priority_match:
+        components["company"] = 8
+        reasons.append(
+            "Тема входит в ваши информационные приоритеты; применимость к бизнесу требует проверки"
+        )
     else:
         components["company"] = 10
         reasons.append("Макроэкономический фактор; прямую экспозицию компании нужно проверить")
+    components["priorities"] = 10 if priority_match else 0
+    components["competitor"] = 12 if competitor_match else 0
+    matched_priorities = list(
+        dict.fromkeys(
+            label for topic in priority_match for label in context.get("priority_labels", {}).get(topic, [])
+        )
+    )[:3]
+    if matched_priorities:
+        reasons.append("Связано с подтверждённым вами приоритетом: " + matched_priorities[0])
+    if competitor_match:
+        reasons.append("Упомянут конкурент из вашего списка наблюдения: " + competitor_match[0])
     components["role"] = affinity
     reasons.append("Для " + ROLE_LABELS[role] + ": " + TOPIC_RULES[main_topic][0].lower())
     components["freshness"] = 15 if age <= 1 else 12 if age <= 3 else 9 if age <= 7 else 5 if age <= 30 else 1
@@ -321,6 +391,8 @@ def score_item(item, context, role, now, window_days=7):
         priority = "monitor"
     return {
         **item,
+        "primary_topic": main_topic,
+        "matched_priorities": matched_priorities,
         "score": score,
         "score_components": components,
         "reasons": reasons,
@@ -331,8 +403,12 @@ def score_item(item, context, role, now, window_days=7):
         if analyst
         else "direct"
         if direct
+        else "competitor"
+        if competitor_match
         else "sector"
         if sector or industry_match
+        else "priority_theme"
+        if priority_match
         else "macro",
         "source_level": "primary"
         if primary
@@ -404,4 +480,8 @@ def rank_news(items, context, role, now, window_days=7):
             excluded["duplicate_story"] = excluded.get("duplicate_story", 0) + 1
         else:
             unique.append(dict(item))
+    from .decision_support import news_interpretation
+
+    for item in unique[:20]:
+        item["decision"] = news_interpretation(item, context, role)
     return unique[:20], excluded
