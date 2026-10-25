@@ -20,6 +20,10 @@ class NarrativePoint(Strict):
     condition: str = Field(min_length=5, max_length=400)
 
 
+class MainConclusion(NarrativePoint):
+    kind: Literal["interpretation", "hypothesis"]
+
+
 class ForecastScenario(Strict):
     variant: Literal["base", "alternative"]
     title: str = Field(min_length=5, max_length=120)
@@ -34,7 +38,7 @@ class ForecastScenario(Strict):
 
 class DecisionNarrative(Strict):
     title: str = Field(min_length=10, max_length=150)
-    main_conclusion: NarrativePoint
+    main_conclusion: MainConclusion
     situation: list[NarrativePoint] = Field(min_length=1, max_length=3)
     drivers: list[NarrativePoint] = Field(min_length=1, max_length=3)
     company_impact: list[NarrativePoint] = Field(min_length=1, max_length=3)
@@ -50,7 +54,7 @@ class DecisionNarrative(Strict):
 def decision_schema(ledger, confirmed_context):
     schema = DecisionNarrative.model_json_schema()
     allowed = [a["anchor_id"] for a in ledger]
-    for name in ("NarrativePoint", "ForecastScenario"):
+    for name in ("NarrativePoint", "MainConclusion", "ForecastScenario"):
         schema["$defs"][name]["properties"]["anchor_ids"]["items"] = {"type": "string", "enum": allowed}
     available = [
         key
@@ -331,13 +335,18 @@ def measures(text):
     return result
 
 
-def validate_narrative(value, ledger, confirmed_context, bank_company=False):
+def validate_narrative(value, ledger, confirmed_context, bank_company=False, selected_news_id=None):
     from .research import numbers as raw_numbers
 
     def numbers(text):
         return raw_numbers(numeric_text(text))
 
     anchors = {a["anchor_id"]: a for a in ledger}
+    pause_event = any(
+        a["source_id"] == selected_news_id
+        and re.search(r"сохран\w*[^.!?]{0,70}ключев\w*\s+ставк", a["quote"], re.I)
+        for a in ledger
+    )
     issues, all_evidence = [], []
     if len(set(value.context_keys)) != len(value.context_keys):
         issues.append("duplicate_narrative_context_key")
@@ -384,6 +393,22 @@ def validate_narrative(value, ledger, confirmed_context, bank_company=False):
             r"гарантир|обязательно|точно произойд", point.text, re.I
         ):
             issues.append("narrative_unwarranted_certainty")
+        if (
+            pause_event
+            and point.kind in {"interpretation", "hypothesis"}
+            and re.search(r"ставк|пауз", point.text, re.I)
+            and re.search(
+                r"(?:кредит|за[её]м|фондирован)\w*[^.!?]{0,70}(?:дорожа\w*|подорож\w*|станов\w*\s+дороже)",
+                point.text,
+                re.I,
+            )
+            and not re.search(
+                r"может|возмож|если|лаг|ранее|предыдущ|спред|преми\w*\s+за\s+риск",
+                point.text + " " + point.condition,
+                re.I,
+            )
+        ):
+            issues.append("pause_does_not_imply_new_cost_increase:" + str(index))
     for scenario in value.scenarios:
         all_evidence.extend(
             anchors[aid]["quote"] + " " + (anchors[aid].get("published_at") or "")
@@ -402,6 +427,12 @@ def validate_narrative(value, ledger, confirmed_context, bank_company=False):
         if {s.variant for s in value.scenarios} != {"base", "alternative"}:
             issues.append("forecast_needs_base_and_alternative")
         for scenario in value.scenarios:
+            if bank_company and re.search(
+                r"(?:марж\w*|прибыл\w*|процентн\w*\s+(?:доход\w*|результат\w*))\s+(?:банк\w*\s+)?(?:держ\w*|раст\w*|выраст\w*|вырос\w*|сохран\w*|стабил\w*|упад\w*|пада\w*|сниж\w*|сниз\w*|увелич\w*|сократ\w*)",
+                scenario.title + ". " + scenario.outcome,
+                re.I,
+            ):
+                issues.append("bank_scenario_result_requires_financial_model")
             if any(aid not in anchors for aid in scenario.anchor_ids):
                 issues.append("unknown_forecast_anchor")
                 continue

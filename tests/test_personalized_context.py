@@ -548,3 +548,68 @@ def test_every_declared_context_key_needs_its_own_cited_anchor():
     assert "ungrounded_context_key:priorities" in validate_narrative(value, ledger, context)
     value.recommendations[0].anchor_ids = ["a3"]
     assert validate_narrative(value, ledger, context) == []
+
+
+def test_composite_main_conclusion_cannot_be_labeled_source_fact():
+    from pydantic import ValidationError
+
+    raw = narrative().model_dump()
+    raw["main_conclusion"]["kind"] = "source_fact"
+    with pytest.raises(ValidationError):
+        DecisionNarrative.model_validate(raw)
+
+
+def test_rate_pause_is_not_incremental_borrowing_cost_shock_without_another_cause():
+    value = narrative()
+    ledger = [
+        {
+            "anchor_id": "a1",
+            "source_id": "fresh",
+            "kind": "public_page",
+            "quote": "Банк России решил сохранить ключевую ставку. Условия остаются жёсткими.",
+        }
+    ]
+    value.company_impact[
+        0
+    ].text = "При сохранении ставки кредит по плавающей переоценке дорожает для клиента."
+    assert any(
+        i.startswith("pause_does_not_imply_new_cost_increase")
+        for i in validate_narrative(value, ledger, {}, True, "fresh")
+    )
+    value.company_impact[0].text = "При сохранении ставки кредит остаётся дорогим для клиента."
+    assert validate_narrative(value, ledger, {}, True, "fresh") == []
+    value.company_impact[
+        0
+    ].text = "Кредит при сохранении ставки может дорожать из-за лага предыдущей переоценки."
+    assert validate_narrative(value, ledger, {}, True, "fresh") == []
+
+
+def test_bank_scenario_cannot_promise_margin_without_a_balance_model():
+    from alfa_agent.narrative import ForecastScenario
+
+    value = narrative()
+    value.forecast_status = "conditional_scenarios"
+    common = dict(
+        outcome="Рыночные условия могут сохраняться при выполнении предпосылок.",
+        horizon="ближайший квартал как плановый горизонт",
+        mechanism="При сохранении условий нужно проверить риск переоценки.",
+        assumptions=["Внешние условия сохраняются."],
+        change_signals=["Новые данные об условиях."],
+        anchor_ids=["a1"],
+        confidence_reason="Основания ограничены внешним сообщением, внутреннего баланса нет.",
+    )
+    value.scenarios = [
+        ForecastScenario(variant="base", title="Базовый сценарий: маржа держится", **common),
+        ForecastScenario(variant="alternative", title="Изменение внешних условий", **common),
+    ]
+    ledger = [
+        {
+            "anchor_id": "a1",
+            "source_id": "s1",
+            "kind": "public_page",
+            "quote": "Внешние условия требуют проверки.",
+        }
+    ]
+    assert "bank_scenario_result_requires_financial_model" in validate_narrative(value, ledger, {}, True)
+    value.scenarios[0].title = "Продолжение текущих внешних условий"
+    assert validate_narrative(value, ledger, {}, True) == []

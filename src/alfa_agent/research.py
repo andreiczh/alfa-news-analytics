@@ -1388,7 +1388,11 @@ class ResearchEngine:
                             decision_schema(ledger, snapshot.get("context", {})),
                         )
                         issues = validate_narrative(
-                            narrative, ledger, snapshot.get("context", {}), request["bank_company"]
+                            narrative,
+                            ledger,
+                            snapshot.get("context", {}),
+                            request["bank_company"],
+                            request.get("news_item_id"),
                         )
                         if not issues and request.get("news_item_id"):
                             anchors = {a["anchor_id"]: a for a in ledger}
