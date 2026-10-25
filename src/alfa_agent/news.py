@@ -379,7 +379,7 @@ class NewsService:
                 logging.getLogger(__name__).error("News queue unavailable (%s)", type(error).__name__)
             await asyncio.sleep(1)
 
-    async def for_research(self, company_id, tenant, snapshot, role, topic):
+    async def for_research(self, company_id, tenant, snapshot, role, topic, *, strict_topic=False):
         context = company_context({**snapshot, "context": self.service.workspace.context(company_id)})
         context["name"] = context["name"] or company_id
         context["anonymous"] |= self.service.workspace.case.exists(company_id)
@@ -405,5 +405,7 @@ class NewsService:
             "regulation": {"capital"},
         }
         wanted = topic_map.get(topic, set())
+        if strict_topic and wanted:
+            items = [i for i in items if wanted & set(i["topics"])]
         items.sort(key=lambda i: bool(wanted & set(i["topics"])), reverse=True)
         return [news_source(i) for i in items[:5]]

@@ -622,3 +622,16 @@ def test_news_excerpt_never_clips_a_rate_table_or_condition():
         "text": "Время публикации пресс-релиза — 13:30 по московскому времени.\nСовет директоров Банка России сохранил ключевую ставку на уровне 14,00% годовых.",
     }
     assert news_headline_quote(policy).startswith("Совет директоров")
+
+
+def test_selected_event_research_filters_unrelated_company_news_but_overview_remains_broad(service):
+    cid = service.workspace.create_company("Альфа-Банк")["company_id"]
+    rate = item("Банк России сохранил ключевую ставку")
+    product = item("Альфа-Банк выдал онлайн экспресс-гарантии", url="https://example.org/guarantees")
+    persist_pool(service, cid, [rate, product])
+    snapshot = service.workspace.snapshot(cid, service.corpus)
+    broad = asyncio.run(service.news.for_research(cid, "demo", snapshot, "cfo", "rates"))
+    focused = asyncio.run(service.news.for_research(cid, "demo", snapshot, "cfo", "rates", strict_topic=True))
+    assert {s["source_id"] for s in broad} == {rate["news_id"], product["news_id"]}
+    assert {s["source_id"] for s in focused} == {rate["news_id"]}
+    assert {i["news_id"] for i in service.news.get(cid)["items"]} == {rate["news_id"], product["news_id"]}

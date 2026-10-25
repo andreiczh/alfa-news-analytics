@@ -1231,6 +1231,7 @@ class ResearchEngine:
                         snapshot,
                         request.get("role") or role_for(request["job_title"]),
                         action.topic,
+                        strict_topic=bool(request.get("news_item_id")),
                     )
                     for item in items:
                         item["provided_for_current_question"] = True

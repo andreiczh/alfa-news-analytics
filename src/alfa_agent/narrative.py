@@ -110,6 +110,10 @@ def revision_details(value, ledger):
                 "allowed_numbers": sorted(numbers(quotes)),
                 "allowed_measures": sorted(measures(quotes)),
                 "allowed_calendar_dates": sorted(calendar_dates(quotes)),
+                "unsupported_numbers": sorted(numbers(point.text + " " + point.condition) - numbers(quotes)),
+                "unsupported_measures": sorted(
+                    measures(point.text + " " + point.condition) - measures(quotes)
+                ),
             }
         )
     for index, scenario in enumerate(value.scenarios):
