@@ -491,7 +491,7 @@ def test_calendar_formats_match_but_matching_digits_cannot_invent_event_date():
             "source_id": "s1",
             "kind": "public_page",
             "quote": "Решение принято 23 октября 2026 года. Следующее заседание состоится 18 декабря 2026 года.",
-            "published_at": "2026-10-23",
+            "published_at": "2026-10-23T10:30:00+00:00",
         }
     ]
     for text in (
