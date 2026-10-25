@@ -1,0 +1,243 @@
+{
+  "version": "0.6.2",
+  "checked_at": "2026-10-25T15:21:34.171257+00:00",
+  "runtime_commit": "15ba5ff784785ffc8406c4f6418f7f80849dc51b",
+  "render_deploy": "dep-dbf1oarncjis73dobejg",
+  "render_live_at": "2026-10-25T15:13:04.752995Z",
+  "url": "https://alfa-business-pulse.onrender.com",
+  "ci_url": "https://github.com/andreiczh/alfa-news-analytics/actions/runs/40205587212",
+  "local_tests": {
+    "passed": 283,
+    "skipped": 0,
+    "real_postgresql_tests_included": 8,
+    "rate_policy_role_window_combinations": 48
+  },
+  "ci_checks": [
+    "frozen dependencies",
+    "pytest",
+    "ruff",
+    "two JavaScript syntax checks",
+    "synthetic ranking gate",
+    "Docker image build",
+    "container API/worker readiness",
+    "Compose API and worker startup"
+  ],
+  "live_matrix": [
+    {
+      "run_id": "research_56517690ed0340398edf",
+      "status": "PARTIAL",
+      "error_code": null,
+      "llm_calls": 3,
+      "tool_calls": 2,
+      "replans": 0,
+      "quality_gate": {
+        "current_rules": true,
+        "status": "draft_requires_review",
+        "independent_expert_verified": false,
+        "scope": "Автоматическая проверка и просмотр пользователем различаются; финансовая экспертиза не подтверждена."
+      },
+      "company": "bank",
+      "role": "cfo",
+      "generation_mode": "rate_pause_policy_v1",
+      "policy_version": "2026-10-25-v6.2",
+      "issues": [
+        [],
+        []
+      ]
+    },
+    {
+      "run_id": "research_f8c5ed87f1b242509591",
+      "status": "PARTIAL",
+      "error_code": null,
+      "llm_calls": 5,
+      "tool_calls": 6,
+      "replans": 0,
+      "quality_gate": {
+        "current_rules": true,
+        "status": "draft_requires_review",
+        "independent_expert_verified": false,
+        "scope": "Автоматическая проверка и просмотр пользователем различаются; финансовая экспертиза не подтверждена."
+      },
+      "company": "retail",
+      "role": "cmo",
+      "generation_mode": "rate_pause_policy_v1",
+      "policy_version": "2026-10-25-v6.2",
+      "issues": [
+        [],
+        []
+      ]
+    },
+    {
+      "run_id": "research_e8a8fb9c51ec4f7c93d9",
+      "status": "PARTIAL",
+      "error_code": null,
+      "llm_calls": 3,
+      "tool_calls": 2,
+      "replans": 0,
+      "quality_gate": {
+        "current_rules": true,
+        "status": "draft_requires_review",
+        "independent_expert_verified": false,
+        "scope": "Автоматическая проверка и просмотр пользователем различаются; финансовая экспертиза не подтверждена."
+      },
+      "company": "steel",
+      "role": "coo",
+      "generation_mode": "rate_pause_policy_v1",
+      "policy_version": "2026-10-25-v6.2",
+      "issues": [
+        [],
+        []
+      ]
+    },
+    {
+      "run_id": "research_abc46fe545f0408fbef0",
+      "status": "PARTIAL",
+      "error_code": null,
+      "llm_calls": 3,
+      "tool_calls": 2,
+      "replans": 0,
+      "quality_gate": {
+        "current_rules": true,
+        "status": "draft_requires_review",
+        "independent_expert_verified": false,
+        "scope": "Автоматическая проверка и просмотр пользователем различаются; финансовая экспертиза не подтверждена."
+      },
+      "company": "bank",
+      "role": "treasurer",
+      "generation_mode": "rate_pause_policy_v1",
+      "policy_version": "2026-10-25-v6.2",
+      "issues": [
+        [],
+        []
+      ]
+    },
+    {
+      "run_id": "research_70afe99543a74ac5b3c7",
+      "status": "PARTIAL",
+      "error_code": null,
+      "llm_calls": 3,
+      "tool_calls": 2,
+      "replans": 0,
+      "quality_gate": {
+        "current_rules": true,
+        "status": "draft_requires_review",
+        "independent_expert_verified": false,
+        "scope": "Автоматическая проверка и просмотр пользователем различаются; финансовая экспертиза не подтверждена."
+      },
+      "company": "retail",
+      "role": "ceo",
+      "generation_mode": "rate_pause_policy_v1",
+      "policy_version": "2026-10-25-v6.2",
+      "issues": [
+        [],
+        []
+      ]
+    },
+    {
+      "run_id": "research_fe5a8d89c6e0428a918a",
+      "status": "PARTIAL",
+      "error_code": null,
+      "llm_calls": 3,
+      "tool_calls": 2,
+      "replans": 0,
+      "quality_gate": {
+        "current_rules": true,
+        "status": "draft_requires_review",
+        "independent_expert_verified": false,
+        "scope": "Автоматическая проверка и просмотр пользователем различаются; финансовая экспертиза не подтверждена."
+      },
+      "company": "steel",
+      "role": "cco",
+      "generation_mode": "rate_pause_policy_v1",
+      "policy_version": "2026-10-25-v6.2",
+      "issues": [
+        [],
+        []
+      ]
+    }
+  ],
+  "matrix_scope": "same current CBR event; three self-reported synthetic company contexts, six roles",
+  "human_verified": false,
+  "independent_expert_validation": false,
+  "browser_checks": {
+    "registration_context_and_responsive": 7,
+    "document_invites_revocation": 7,
+    "memo_export_and_responsive": 9,
+    "javascript_errors": []
+  },
+  "load_4": {
+    "requests": 100,
+    "concurrency": 4,
+    "accounts": 2,
+    "success_200": 100,
+    "p50_ms": 254.13,
+    "p95_ms": 656.57,
+    "wall_seconds": 7.65,
+    "cross_workspace_read": 403,
+    "existing_cookie_after_process_restarts": "valid",
+    "exact_original_after_process_restarts": true,
+    "scope": "Render Free PostgreSQL TLS; read API only; no external search/paid analysis load"
+  },
+  "load_20": {
+    "requests": 200,
+    "concurrency": 20,
+    "accounts": 2,
+    "success_200": 200,
+    "p50_ms": 1385.29,
+    "p95_ms": 3876.33,
+    "wall_seconds": 18.41,
+    "cross_workspace_read": 403,
+    "existing_cookie_after_process_restarts": "valid",
+    "exact_original_after_process_restarts": true,
+    "scope": "Render Free PostgreSQL TLS; read API only; no external search/paid analysis load"
+  },
+  "backup": {
+    "restored_rows": 742,
+    "sha256": "c1e96b57949f8fe663e34e9c723d38dfec492c0276fc2a2533c8b93f51162e6e",
+    "uncertain_paid_calls": "require_manual_retry",
+    "account_password_verified": true,
+    "original_sha256_verified": true,
+    "context_verified": true,
+    "all_six_final_reports_verified": true,
+    "sessions_revoked": true,
+    "paid_calls_during_restore": 0,
+    "target": "independent local PostgreSQL schema with TLS verification"
+  },
+  "persistence": {
+    "all_six_report_hashes_unchanged": true,
+    "version": "0.6.2",
+    "runtime_commit": "15ba5ff784785ffc8406c4f6418f7f80849dc51b",
+    "analysis_policy_version": "2026-10-25-v6.2",
+    "storage": "postgresql",
+    "auth_mode": "accounts",
+    "readiness": {
+      "ready": true,
+      "database": "ok",
+      "worker_age_seconds": 2.74,
+      "worker": "ok"
+    },
+    "session_valid_after_final_deploy": true,
+    "original_file_hash_verified": true
+  },
+  "ranking_reference": {
+    "reference_sha256": "122ffefed7cd9e9b6cca7124e2ae3b3e97b5ec571577b5110e09a936be8f75f7",
+    "scope": "Frozen developer-authored editorial reference. Not independent human annotation or real news. Never loaded by the production collector."
+  },
+  "ranking_summary": {
+    "mean_p5": 0.9666666666666666,
+    "minimum_p5": 0.8,
+    "critical_recall20": 1.0,
+    "baseline_mean_p5": 0.8777777777777778,
+    "baseline_critical_recall20": 1.0
+  },
+  "remaining_limits": [
+    "Free PostgreSQL expires 2026-11-24; no indefinite storage or managed automatic backups",
+    "one instance; small bounded read load, not enterprise SLA",
+    "account and workspace membership are verified, employment and bank SSO are not",
+    "no independent search relevance/recall gold standard",
+    "non-rate research remains a source-bound LLM draft requiring review",
+    "no full company ALM, operating or cash-flow model",
+    "bank OCR/claim corpus still pending human review",
+    "jury GitHub account alfa-hack-2026 permission checked: none"
+  ]
+}
