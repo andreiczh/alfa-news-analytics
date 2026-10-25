@@ -98,3 +98,15 @@ def test_retrieval_keeps_the_complete_liquidity_sentence_in_its_anchor():
     ledger = evidence_ledger([source], "дефицит банковской ликвидности денежного рынка")
     assert any(sentence in a["quote"] and a["excerpt_complete"] for a in ledger)
     assert all(a["quote"] in source["text"] for a in ledger)
+
+
+def test_unverified_currency_date_is_scope_metadata_but_today_is_not_event_evidence():
+    value = memo()
+    value.scenarios[
+        0
+    ].confidence_reason = "Актуальность на 2026-10-25 не проверена; требуется прочитать новые источники."
+    assert not validate_narrative(value, LEDGER, {}, as_of=AS_OF)
+    value.scenarios[
+        0
+    ].outcome = "Центральный банк принял новое решение 2026-10-25 и изменил условия фондирования."
+    assert "unsupported_forecast_date" in validate_narrative(value, LEDGER, {}, as_of=AS_OF)

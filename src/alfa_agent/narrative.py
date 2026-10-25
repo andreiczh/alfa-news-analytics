@@ -306,6 +306,26 @@ def supported_dates(text, evidence):
     )
 
 
+def factual_text(text, as_of=None, planning_days=30):
+    """Exclude only exact server-owned scope metadata from source fact checks.
+
+    This never licenses an event on today's date. The date can be omitted only
+    inside an explicit statement about unverified currency of the evidence.
+    """
+    if not as_of:
+        return text
+    from .analysis_policy import planning_policy
+
+    policy = planning_policy(as_of, planning_days)
+    text = re.sub(re.escape(policy["horizon"]), "плановый период", text, flags=re.I)
+    return re.sub(
+        r"актуальность\s+на\s+" + re.escape(policy["as_of"]) + r"\s+не\s+(?:проверена|подтверждена)",
+        "актуальность на дату анализа не подтверждена",
+        text,
+        flags=re.I,
+    )
+
+
 def numeric_text(text):
     """Measured Russian cardinals also need numeric evidence; spelling out a value is no escape."""
     units = (
@@ -426,9 +446,10 @@ def validate_narrative(
             anchors[aid]["quote"] + " " + (anchors[aid].get("published_at") or "") for aid in point.anchor_ids
         )
         all_evidence.append(local)
-        if not numbers(point.text + " " + point.condition) <= numbers(local):
+        checked_text = point.text + " " + factual_text(point.condition, as_of, planning_days)
+        if not numbers(checked_text) <= numbers(local):
             issues.append("unsupported_narrative_number:" + str(index))
-        if not supported_dates(point.text + " " + point.condition, local):
+        if not supported_dates(checked_text, local):
             issues.append("unsupported_narrative_date:" + str(index))
         if not measures(point.text + " " + point.condition) <= measures(local):
             issues.append("unsupported_narrative_unit:" + str(index))
@@ -495,7 +516,7 @@ def validate_narrative(
                     scenario.outcome,
                     *([] if as_of else [scenario.horizon]),
                     scenario.mechanism,
-                    scenario.confidence_reason,
+                    factual_text(scenario.confidence_reason, as_of, planning_days),
                     *scenario.assumptions,
                     *scenario.change_signals,
                 ]
