@@ -74,6 +74,33 @@ def test_only_packaged_public_examples_are_seeded_once(pg_services):
         assert service.workspace.file_path(row).is_file()
 
 
+def test_pg_operator_provisioning_is_safe_on_concurrent_replay(pg_services):
+    from alfa_agent.accounts import AuthError, password_hash
+
+    service = pg_services()
+    password = "synthetic-provisioned-password"
+    encoded = password_hash(password)
+
+    def create():
+        return service.accounts.provision_demo(
+            "pg-test-team", encoded, "Тестовая Команда", "Тестовая компания", "CFO"
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        accounts = list(pool.map(lambda _: create(), range(2)))
+    assert accounts[0] == accounts[1]
+    assert service.accounts.login("PG-TEST-TEAM", password) == accounts[0]
+    with pytest.raises(AuthError):
+        service.accounts.provision_demo(
+            "pg-test-team",
+            password_hash(password + "changed"),
+            "Тестовая Команда",
+            "Тестовая компания",
+            "CFO",
+        )
+    assert service.accounts.login("pg-test-team", password) == accounts[0]
+
+
 def test_restore_can_skip_packaged_seed_in_an_actual_release_root(pg_services, tmp_path):
     original = pg_services(with_seed=True)
     saved = tmp_path / "seeded-runtime.gz"

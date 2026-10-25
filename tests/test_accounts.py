@@ -3,7 +3,7 @@ import re
 from fastapi.testclient import TestClient
 import pytest
 
-from alfa_agent.accounts import AuthLimited, password_hash, password_matches
+from alfa_agent.accounts import AuthError, AuthLimited, password_hash, password_matches
 from alfa_agent.access import COOKIE
 from alfa_agent.api import create_app
 
@@ -49,6 +49,57 @@ def test_passwords_are_salted_and_wrong_values_fail():
     assert password_matches(PASSWORD, a)
     assert not password_matches(PASSWORD + "wrong", a)
     assert not password_matches(PASSWORD, "invalid")
+
+
+def test_operator_provisioning_is_idempotent_and_keeps_normal_password_policy(service):
+    import hashlib
+
+    short = "demo-123"
+    salt = "a1" * 16
+    digest = hashlib.pbkdf2_hmac("sha256", short.encode(), bytes.fromhex(salt), 600_000).hex()
+    encoded = f"pbkdf2_sha256$600000${salt}${digest}"
+    account = service.accounts.provision_demo(
+        "test-team", encoded, "Тестовая Команда", "Тестовая компания", "CFO"
+    )
+    repeated = service.accounts.provision_demo(
+        "TEST-TEAM", encoded, "Тестовая Команда", "Тестовая компания", "CFO"
+    )
+    assert repeated == account
+    assert service.accounts.login("TEST-TEAM", short) == account
+    with service.store.connection() as db:
+        assert db.execute("SELECT COUNT(*) FROM accounts WHERE login='test-team'").fetchone()[0] == 1
+    with pytest.raises(AuthError):
+        service.accounts.register("normal-user", short, "Другой Пользователь", "Компания", "CEO")
+    with pytest.raises(AuthError):
+        password_hash(short)
+    with pytest.raises(AuthError):
+        service.accounts.provision_demo("invalid-hash", "invalid", "Тестовая Команда", "Компания", "CFO")
+
+
+def test_operator_provisioning_cannot_take_over_an_existing_account(service):
+    owner = service.accounts.register("existing-owner", PASSWORD, "Владелец Аккаунта", "Компания", "CFO")
+    encoded = password_hash("another-test-password")
+    with pytest.raises(AuthError):
+        service.accounts.provision_demo("existing-owner", encoded, "Другой Пользователь", "Компания", "CFO")
+    assert service.accounts.login("existing-owner", PASSWORD) == owner
+
+
+def test_provisioned_accounts_keep_separate_workspaces_and_do_not_revert_passwords(service, monkeypatch):
+    from alfa_agent.identity import current_principal
+
+    first_hash, second_hash = password_hash(PASSWORD), password_hash(PASSWORD + "two")
+    a = service.accounts.provision_demo("demo-a", first_hash, "Первый Пользователь", "Компания", "CFO")
+    b = service.accounts.provision_demo("demo-b", second_hash, "Второй Пользователь", "Компания", "CFO")
+    marker = current_principal.set(a)
+    try:
+        assert a.company_id != b.company_id
+        assert service.accounts.permission(b.company_id) is None
+        service.accounts.change_password(PASSWORD, PASSWORD + "changed")
+        with pytest.raises(AuthError):
+            service.accounts.provision_demo("demo-a", first_hash, "Первый Пользователь", "Компания", "CFO")
+        assert service.accounts.login("demo-a", PASSWORD + "changed") == a
+    finally:
+        current_principal.reset(marker)
 
 
 def test_login_returns_the_same_workspace_and_logout_revokes_replay(app):

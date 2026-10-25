@@ -1,19 +1,48 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Создать аккаунт — Пульс бизнеса</title><link rel="stylesheet" href="/static/login.css"/><link rel="icon" href="/static/favicon.svg"/></head>
-<body><main class="login-shell"><section class="intro-panel"><a class="brand" href="/auth/login">Пульс бизнеса</a>
-<div class="intro-body"><span class="eyebrow">ВАШЕ РАБОЧЕЕ ПРОСТРАНСТВО</span><h1>Сначала компания.<br/>Затем то, что важно вам.</h1>
-<p>Должность определяет акценты аналитики. Права доступа задаются отдельно.</p>
-<div class="example"><span>ПРИВАТНО ПО УМОЛЧАНИЮ</span><p>Совпадение названия компании не объединяет аккаунты.</p><small>Для совместной работы владелец пространства выдаёт одноразовое приглашение.</small></div></div>
-<span class="intro-foot">Пилот для хакатона Альфа-Банка</span></section>
-<section class="login-panel"><div class="login-form-wrap"><span class="badge">Первый вход</span><h2>Создать аккаунт</h2>
-<form action="/auth/register" method="post">
-<label for="full-name">Имя и фамилия</label><input id="full-name" name="full_name" autocomplete="name" minlength="3" maxlength="100" required autofocus/>
-<label for="company">Компания</label><input id="company" name="company_name" autocomplete="organization" minlength="2" maxlength="160" required/>
-<label for="job-title">Должность</label><input id="job-title" name="job_title" autocomplete="organization-title" placeholder="Например, CFO или казначей" minlength="2" maxlength="120" required/>
-<label for="login">Логин</label><input id="login" name="login" autocomplete="username" pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]{2,63}" placeholder="Латинские буквы и цифры, от 3 символов" maxlength="64" required/>
-<label for="password">Ваш личный пароль</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" placeholder="Не менее 12 символов" required/>
-<label for="invite-password">Код доступа к пилоту</label><input id="invite-password" name="invite_password" type="password" autocomplete="off" maxlength="256" placeholder="Прежний пароль команды" required/>
-<p class="error" role="alert">{{ERROR}}</p><button type="submit">Создать и войти</button></form>
-<p class="fine-print">Уже есть аккаунт? <a href="/auth/login">Войти</a><br/>Название компании и должность указаны вами; трудоустройство системой не проверяется. Регистрация создаёт отдельное пространство.</p>
-</div></section></main></body></html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Создать аккаунт — Пульс бизнеса</title>
+    <link rel="stylesheet" href="/static/login.css?v=0.6.3" />
+    <link rel="icon" href="/static/favicon.svg" />
+  </head>
+  <body class="account-page">
+    <main class="account-shell">
+      <a class="brand account-brand" href="/auth/login">
+        <img src="/static/favicon.svg" width="32" height="32" alt="" />
+        Пульс бизнеса
+      </a>
+      <section class="account-card" aria-labelledby="register-title">
+        <h1 id="register-title">Создать аккаунт</h1>
+        <p class="account-description">Укажите компанию и должность, чтобы настроить аналитику под ваши задачи.</p>
+        <form action="/auth/register" method="post">
+          <label for="full-name">Имя и фамилия</label>
+          <input id="full-name" name="full_name" autocomplete="name" minlength="3" maxlength="100" required autofocus />
+          <label for="company">Компания</label>
+          <input id="company" name="company_name" autocomplete="organization" minlength="2" maxlength="160" required />
+          <label for="job-title">Должность</label>
+          <input id="job-title" name="job_title" autocomplete="organization-title"
+            placeholder="Например, CFO или казначей" minlength="2" maxlength="120" required />
+          <label for="login">Логин</label>
+          <input id="login" name="login" autocomplete="username" autocapitalize="none" spellcheck="false"
+            pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]{2,63}" aria-describedby="login-hint" maxlength="64" required />
+          <p class="field-hint" id="login-hint">От 3 символов: латинские буквы, цифры, точка, дефис или подчёркивание.</p>
+          <label for="password">Личный пароль</label>
+          <input id="password" name="password" type="password" autocomplete="new-password"
+            minlength="12" maxlength="256" aria-describedby="password-hint" required />
+          <p class="field-hint" id="password-hint">Не менее 12 символов.</p>
+          <label for="invite-password">Код доступа к пилоту</label>
+          <input id="invite-password" name="invite_password" type="password" autocomplete="off"
+            maxlength="256" aria-describedby="invite-hint" required />
+          <p class="field-hint" id="invite-hint">Код, выданный вашей команде для регистрации.</p>
+          <p class="error" role="alert">{{ERROR}}</p>
+          <button type="submit">Создать и войти</button>
+        </form>
+        <p class="account-switch">Уже есть аккаунт? <a href="/auth/login">Войти</a></p>
+        <p class="account-notice">Создадим отдельное пространство. Доступ коллегам можно открыть по приглашению. Компания и должность указаны вами, трудоустройство не проверяется.</p>
+      </section>
+      <p class="account-foot">Пилот для хакатона Альфа-Банка</p>
+    </main>
+  </body>
+</html>

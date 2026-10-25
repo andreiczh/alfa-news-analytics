@@ -92,16 +92,45 @@ class Accounts:
             raise AuthLimited("Слишком много попыток. Повторите позднее.")
 
     def register(self, login, password, full_name, company, job_title):
+        return self._create_account(login, password_hash(password), full_name, company, job_title)
+
+    def provision_demo(self, login, encoded, full_name, company, job_title):
+        """Operator CLI only: create a test account; never overwrite an existing login.
+
+        The operator supplies a salted hash, never a password in application code.
+        HTTP registration and password changes keep their normal length policy.
+        """
+        if not re.fullmatch(r"pbkdf2_sha256\$600000\$[0-9a-f]{32}\$[0-9a-f]{64}", encoded):
+            raise AuthError("Некорректный хеш пароля тестового аккаунта.")
+        return self._create_account(login, encoded, full_name, company, job_title, provisioned=True)
+
+    def _create_account(self, login, encoded, full_name, company, job_title, *, provisioned=False):
         login = login.strip().casefold()
         if not re.fullmatch(r"[a-z0-9][a-z0-9_.-]{2,63}", login):
             raise AuthError("Логин: от 3 до 64 латинских букв, цифр, точек, дефисов или подчёркиваний.")
-        encoded = password_hash(password)
         name, company, title = profile_values(full_name, company, job_title)
         user_id, company_id = new_id("user"), new_id("company")
         principal = Principal(user_id, company_id, name, company, title, role_for(title))
         with self.store.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            if db.execute("SELECT 1 FROM accounts WHERE login=?", (login,)).fetchone():
+            existing = db.execute("SELECT * FROM accounts WHERE login=?", (login,)).fetchone()
+            if existing and provisioned and not existing["disabled"]:
+                profile = db.execute(
+                    "SELECT * FROM employee_profiles WHERE user_id=?", (existing["id"],)
+                ).fetchone()
+                marker = db.execute(
+                    "SELECT 1 FROM security_events WHERE user_id=? AND event='demo_account_provisioned'",
+                    (existing["id"],),
+                ).fetchone()
+                if (
+                    marker
+                    and hmac.compare_digest(existing["password_hash"], encoded)
+                    and profile
+                    and (profile["full_name"], profile["company_name"], profile["job_title"])
+                    == (name, company, title)
+                ):
+                    return Principal(**{key: profile[key] for key in Principal.__dataclass_fields__})
+            if existing:
                 raise AuthError("Этот логин недоступен.")
             db.execute(
                 "INSERT INTO accounts(id,login,password_hash,created_at) VALUES(?,?,?,?)",
@@ -117,6 +146,8 @@ class Accounts:
                 (user_id, company_id, name, company, title, principal.role, now),
             )
             self.event(db, user_id, "account_registered", principal.company_id)
+            if provisioned:
+                self.event(db, user_id, "demo_account_provisioned", principal.company_id)
         return principal
 
     def login(self, login, password, *, with_session=False):
