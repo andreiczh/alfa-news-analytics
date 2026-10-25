@@ -75,6 +75,9 @@ class Service:
         from .accounts import Accounts
 
         self.accounts = Accounts(self)
+        from .workspace_search import WorkspaceSearch
+
+        self.workspace_search = WorkspaceSearch(self)
         from .operations import Operations
 
         self.operations = Operations(self.store)

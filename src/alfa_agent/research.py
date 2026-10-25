@@ -61,6 +61,7 @@ class ResearchRequest(Strict):
     parent_id: str | None = Field(default=None, max_length=100)
     bank_document_id: str | None = Field(default=None, max_length=100)
     news_item_id: str | None = Field(default=None, pattern=r"^news_[a-f0-9]{24}$")
+    seed_news_ids: list[str] = Field(default_factory=list, max_length=3)
     planning_days: Literal[7, 30, 90, 365] = 30
     allow_partial: bool = True
 
@@ -700,6 +701,8 @@ class ResearchService:
     def create(self, request, idem):
         self.service.authorize_company(request.company_id)
         raw = request.model_dump(mode="json")
+        if not request.seed_news_ids:
+            raw.pop("seed_news_ids", None)
         digest = hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()
         with self.store.connection() as db:
             old = db.execute(
@@ -761,8 +764,13 @@ class ResearchService:
         sources = []
         if parent:
             sources = [{**s, "provided_for_current_question": False} for s in parent["sources"]]
-        if request.news_item_id:
-            item = self.service.news.item(request.company_id, request.news_item_id)
+        news_ids = list(
+            dict.fromkeys(([request.news_item_id] if request.news_item_id else []) + request.seed_news_ids)
+        )
+        if any(not re.fullmatch(r"news_[a-f0-9]{24}", value) for value in news_ids):
+            raise ValueError("invalid_news_reference")
+        for news_id in news_ids:
+            item = self.service.news.item(request.company_id, news_id)
             item_source = news_source(item)
             if item_source["kind"] == "search_lead":
                 item_source["kind"] = "url_to_read"
@@ -940,6 +948,8 @@ class ResearchService:
             "created_at": row["created_at"],
             "favorite": bool(row["favorite"]),
             "parent_id": row["input"].get("parent_id"),
+            "public_search": row["input"]["public_search"],
+            "planning_days": row["input"].get("planning_days", 30),
             "result": row["result"],
             "sources": state["sources"],
             "trace": trace,
@@ -1001,22 +1011,29 @@ class ResearchService:
             self.service.accounts.event(db, principal.user_id, "research_user_" + verdict, job["company_id"])
         return self.get(run_id)["quality_gate"]
 
-    def history(self, company_id):
+    def history(self, company_id, *, saved_only=False, limit=25, offset=0):
         self.service.authorize_company(company_id)
         with self.store.connection() as db:
-            return [
+            result = [
                 {
                     "run_id": r["id"],
                     "status": r["status"],
                     "created_at": r["created_at"],
                     "favorite": bool(r["favorite"]),
                     "question": json.loads(r["input_json"])["question"],
+                    "parent_id": json.loads(r["input_json"]).get("parent_id"),
+                    "role": json.loads(r["input_json"]).get("role"),
+                    "has_result": bool(r["has_result"]),
                 }
                 for r in db.execute(
-                    "SELECT id,status,created_at,favorite,input_json FROM research_jobs WHERE company_id=? AND tenant=? ORDER BY created_at DESC LIMIT 25",
-                    (company_id, self.service.tenant),
+                    "SELECT id,status,created_at,favorite,input_json,result_json IS NOT NULL AS has_result "
+                    "FROM research_jobs WHERE company_id=? AND tenant=? "
+                    + ("AND favorite=1 " if saved_only else "")
+                    + "ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",
+                    (company_id, self.service.tenant, limit, offset),
                 )
             ]
+        return result
 
     def set_favorite(self, run_id, value):
         self.get(run_id)
@@ -1236,6 +1253,7 @@ class ResearchEngine:
                 "job_title": request["job_title"],
                 "role": request.get("role") or role_for(request["job_title"]),
                 "selected_news_source_id": request.get("news_item_id"),
+                "provided_news_source_ids": request.get("seed_news_ids", []),
                 "fresh_news_requested": request.get("fresh_news_requested", False),
                 "as_of": request["as_of"],
                 "public_search_enabled": request["public_search"],
@@ -1253,6 +1271,9 @@ class ResearchEngine:
             state["phase"] = "SOURCES"
             state["tool_calls"] += 1
             save()
+            audit(
+                "tool_started", {"tool": action.tool, "reason": action.reason, "step_id": state["tool_calls"]}
+            )
             count, error = 0, None
             try:
                 if action.tool == "company":
@@ -1403,7 +1424,7 @@ class ResearchEngine:
                 "error": error,
             }
             state["observations"].append(observation)
-            audit("tool_completed", observation)
+            audit("tool_completed", {**observation, "step_id": state["tool_calls"]})
             save()
 
         try:

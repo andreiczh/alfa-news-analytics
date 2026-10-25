@@ -60,6 +60,10 @@ class NewsService:
             CREATE TABLE IF NOT EXISTS news_feedback(
               id TEXT PRIMARY KEY,tenant TEXT NOT NULL,company_id TEXT NOT NULL,news_id TEXT NOT NULL,
               rating TEXT NOT NULL,created_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS news_saved(
+              tenant TEXT NOT NULL,company_id TEXT NOT NULL,news_id TEXT NOT NULL,
+              item_json TEXT NOT NULL,created_at TEXT NOT NULL,
+              PRIMARY KEY(tenant,company_id,news_id));
             """)
 
     def context(self, company_id, persist=False):
@@ -141,6 +145,9 @@ class NewsService:
         items, excluded = rank_news(result.get("items", []), context, role, utcnow(), window_days)
         # Full article text stays server-side; only short excerpts go to the news cards.
         public = [{k: v for k, v in item.items() if k != "text"} for item in items]
+        saved = self.saved_ids(company_id)
+        for item in public:
+            item["saved"] = item["news_id"] in saved
         checked = good["finished_at"] if good else None
         age = (utcnow() - datetime.fromisoformat(checked)).total_seconds() if checked else None
         previous_context = json.loads(good["context_json"]) if good else {}
@@ -197,7 +204,84 @@ class NewsService:
             found = next((i for i in json.loads(row[0])["items"] if i["news_id"] == news_id), None)
             if found:
                 return found
+        with self.store.connection() as db:
+            saved = db.execute(
+                "SELECT item_json FROM news_saved WHERE tenant=? AND company_id=? AND news_id=?",
+                (self.service.tenant, company_id, news_id),
+            ).fetchone()
+        if saved:
+            return json.loads(saved[0])
         raise NotFound("news_not_accessible")
+
+    def saved_ids(self, company_id):
+        self.service.authorize_company(company_id)
+        with self.store.connection() as db:
+            return {
+                row[0]
+                for row in db.execute(
+                    "SELECT news_id FROM news_saved WHERE tenant=? AND company_id=?",
+                    (self.service.tenant, company_id),
+                )
+            }
+
+    def save_item(self, company_id, news_id, saved):
+        self.service.authorize_company(company_id)
+        item = self.item(company_id, news_id) if saved else None
+        with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if not saved:
+                db.execute(
+                    "DELETE FROM news_saved WHERE tenant=? AND company_id=? AND news_id=?",
+                    (self.service.tenant, company_id, news_id),
+                )
+                return
+            existing = db.execute(
+                "SELECT 1 FROM news_saved WHERE tenant=? AND company_id=? AND news_id=?",
+                (self.service.tenant, company_id, news_id),
+            ).fetchone()
+            if existing:
+                return
+            count = db.execute(
+                "SELECT count(*) FROM news_saved WHERE tenant=? AND company_id=?",
+                (self.service.tenant, company_id),
+            ).fetchone()[0]
+            if count >= 200:
+                raise Conflict("saved_news_limit")
+            db.execute(
+                "INSERT INTO news_saved VALUES(?,?,?,?,?)",
+                (
+                    self.service.tenant,
+                    company_id,
+                    news_id,
+                    json.dumps(item, ensure_ascii=False),
+                    utcnow().isoformat(),
+                ),
+            )
+
+    def saved_items(self, company_id, *, limit=25, offset=0):
+        self.service.authorize_company(company_id)
+        with self.store.connection() as db:
+            total = db.execute(
+                "SELECT count(*) FROM news_saved WHERE tenant=? AND company_id=?",
+                (self.service.tenant, company_id),
+            ).fetchone()[0]
+            rows = db.execute(
+                "SELECT item_json,created_at FROM news_saved WHERE tenant=? AND company_id=? "
+                "ORDER BY created_at DESC,news_id LIMIT ? OFFSET ?",
+                (self.service.tenant, company_id, limit, offset),
+            ).fetchall()
+        return {
+            "items": [
+                {
+                    **{k: v for k, v in json.loads(r[0]).items() if k != "text"},
+                    "saved": True,
+                    "saved_at": r[1],
+                }
+                for r in rows
+            ],
+            "total": total,
+            "has_more": offset + len(rows) < total,
+        }
 
     def feedback(self, company_id, news_id, rating):
         self.item(company_id, news_id)

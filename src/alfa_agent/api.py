@@ -619,6 +619,28 @@ def create_app(settings=None):
             company_id, payload.role or app.state.service.personalization.get()["role"], payload.force
         )
 
+    @app.get("/api/companies/{company_id}/search")
+    def workspace_search(
+        company_id: str,
+        q: str = Query(min_length=2, max_length=500),
+        scope: str = Query(default="all", pattern="^(all|news|company)$"),
+        days: int = Query(default=7, ge=1, le=90),
+    ):
+        return app.state.service.workspace_search.search(company_id, q, scope=scope, days=days)
+
+    @app.get("/api/companies/{company_id}/news/saved")
+    def saved_news(
+        company_id: str,
+        limit: int = Query(default=25, ge=1, le=50),
+        offset: int = Query(default=0, ge=0, le=10000),
+    ):
+        return app.state.service.news.saved_items(company_id, limit=limit, offset=offset)
+
+    @app.put("/api/companies/{company_id}/news/{news_id}/saved")
+    def save_news(company_id: str, news_id: str, payload: ResearchFavorite):
+        app.state.service.news.save_item(company_id, news_id, payload.saved)
+        return {"saved": payload.saved}
+
     @app.post("/api/companies/{company_id}/news/feedback", status_code=201)
     def news_feedback(company_id: str, payload: NewsFeedback):
         app.state.service.news.feedback(company_id, payload.news_id, payload.rating)
@@ -890,8 +912,15 @@ def create_app(settings=None):
             raise HTTPException(422, str(error)) from None
 
     @app.get("/api/research")
-    def research_history(company_id: str):
-        return app.state.service.research.history(company_id)
+    def research_history(
+        company_id: str,
+        saved_only: bool = False,
+        limit: int = Query(default=25, ge=1, le=50),
+        offset: int = Query(default=0, ge=0, le=10000),
+    ):
+        return app.state.service.research.history(
+            company_id, saved_only=saved_only, limit=limit, offset=offset
+        )
 
     @app.get("/api/research/{run_id}")
     def research_result(run_id: str):

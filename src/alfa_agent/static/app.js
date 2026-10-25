@@ -113,6 +113,11 @@ const S = {
   contextPoll: null,
   contextSending: false,
   contextError: null,
+  quick: { query: "", result: null, loading: false, error: null },
+  companySearch: { query: "", result: null, loading: false, error: null },
+  searchEpoch: 0,
+  reportList: null,
+  savedList: null,
   draft: { question: "", news: "", urls: "", public: true },
 };
 
@@ -251,6 +256,8 @@ function statusText(status) {
   );
 }
 const ERRORS = {
+  saved_news_limit:
+    "В избранном уже 200 новостей этой компании. Удалите ненужные, чтобы сохранить новые.",
   company_documents_processing:
     "Документы ещё обрабатываются. Дождитесь обновления профиля и повторите.",
   research_queue_limit:
@@ -308,10 +315,13 @@ const ERRORS = {
     "Достигнут лимит шагов исследования. Сузьте вопрос и повторите.",
   rate_limited: "API временно ограничил частоту запросов. Повторите позже.",
   provider_unavailable: "Организаторский API временно недоступен.",
-  paid_queue_user_limit: "У вас уже есть три незавершённые задачи. Дождитесь результата или отмените лишнюю.",
+  paid_queue_user_limit:
+    "У вас уже есть три незавершённые задачи. Дождитесь результата или отмените лишнюю.",
   paid_queue_global_limit: "Очередь обработки заполнена. Попробуйте позднее.",
-  pilot_storage_quota: "Хранилище пилота заполнено. Обратитесь к владельцу платформы.",
-  review_sources_and_assumptions_first: "Сначала подтвердите проверку источников и допущений.",
+  pilot_storage_quota:
+    "Хранилище пилота заполнено. Обратитесь к владельцу платформы.",
+  review_sources_and_assumptions_first:
+    "Сначала подтвердите проверку источников и допущений.",
 };
 function message(error) {
   const code = typeof error === "string" ? error : error?.message;
@@ -444,6 +454,8 @@ function go(view) {
   render();
   if (view === "home") loadNews(true);
   if (view === "company") loadContextConversation();
+  if (view === "reports") loadReports();
+  if (view === "saved") loadSaved();
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 function render() {
@@ -452,7 +464,12 @@ function render() {
     .forEach((b) =>
       b.classList.toggle(
         "active",
-        b.dataset.view === (S.view === "legacy" ? "research" : S.view),
+        b.dataset.view ===
+          (S.view === "legacy"
+            ? "research"
+            : S.view === "research" && S.job
+              ? "reports"
+              : S.view),
       ),
     );
   $("#company-name").textContent = companyName();
@@ -486,6 +503,8 @@ function render() {
       home: renderHome,
       research: renderResearch,
       company: renderCompany,
+      reports: renderReports,
+      saved: renderSaved,
       library: renderLibrary,
       legacy: renderLegacy,
     })[S.view] || renderHome
@@ -609,11 +628,18 @@ function composer(compact = false) {
   news.value = S.draft.news;
   news.addEventListener("input", () => (S.draft.news = news.value));
   advanced.append(field("Текст новости", news));
-  const planning = node("select"); planning.id = "research-horizon";
-  for (const days of [7,30,90,365]) { const option=node("option","",days === 365 ? "Год" : days+" дней"); option.value=String(days); planning.append(option); }
-  planning.value=String(S.draft.planningDays||30);
-  planning.addEventListener("change",()=>{S.draft.planningDays=Number(planning.value);});
-  form.append(field("Горизонт планирования",planning));
+  const planning = node("select");
+  planning.id = "research-horizon";
+  for (const days of [7, 30, 90, 365]) {
+    const option = node("option", "", days === 365 ? "Год" : days + " дней");
+    option.value = String(days);
+    planning.append(option);
+  }
+  planning.value = String(S.draft.planningDays || 30);
+  planning.addEventListener("change", () => {
+    S.draft.planningDays = Number(planning.value);
+  });
+  form.append(field("Горизонт планирования", planning));
   form.append(detail("Добавить новость или первоисточники", advanced));
   const checkbox = node("input");
   checkbox.type = "checkbox";
@@ -696,50 +722,31 @@ function field(label, input) {
 function renderHome(main) {
   main.append(heading("Обзор", companyName() + " · " + activeRoleName()));
   const content = node("div", "overview-stack");
-  content.append(renderDecisionOverview(), composer(true));
+  content.append(renderWorkspaceSearch(), renderDecisionOverview());
   const news = node("section", "stack");
   news.id = "personal-news";
   news.setAttribute("aria-label", "Новости для компании и роли");
-  content.append(news);
   renderNews(news);
+  content.append(detail("Полная подборка новостей", news));
   const title = add(
     node("div", "section-heading"),
-    node("h2", "", "Ваши исследования"),
+    node("h2", "", "Последние исследования"),
+    button("Все отчёты", () => go("reports"), "text-button"),
   );
-  const filters = node("div", "segmented");
-  for (const [id, label] of [
-    ["all", "Все"],
-    ["favorites", "Избранное"],
-  ])
-    filters.append(
-      button(
-        label,
-        () => {
-          S.filter = id;
-          render();
-        },
-        "segment" + (S.filter === id ? " active" : ""),
-      ),
-    );
-  title.append(filters);
   content.append(title);
-  const visible = S.history.filter((j) => S.filter === "all" || j.favorite);
-  if (visible.length)
-    visible.slice(0, 5).forEach((j) => content.append(historyCard(j)));
+  if (S.history.length)
+    S.history.slice(0, 3).forEach((j) => content.append(historyCard(j)));
   else
     content.append(
       empty(
-        S.filter === "favorites"
-          ? "Пока нет избранного"
-          : "Начните с вопроса о вашей компании",
-        S.filter === "favorites"
-          ? "Сохраняйте полезные исследования, чтобы вернуться к ним."
-          : "Уточните контекст и задайте вопрос. События будут связаны с задачами вашей роли.",
+        "Отчётов пока нет",
+        "Найдите нужную тему или задайте вопрос в разделе «Исследование».",
       ),
     );
   content.append(detail("Датированный сценарий из кейса", newsCard()));
   main.append(content);
 }
+
 function historyCard(j) {
   return add(
     card("history-card"),
@@ -949,7 +956,12 @@ function renderNews(container) {
       },
       index === 0 ? "button primary" : "button",
     );
-    add(actions, analyze, link(item.url, "Первоисточник", "text-button"));
+    add(
+      actions,
+      analyze,
+      saveNewsButton(item),
+      link(item.url, "Первоисточник", "text-button"),
+    );
     c.append(actions);
     c.append(
       button(
@@ -1053,6 +1065,13 @@ async function loadNews(auto = true) {
     if (cid !== S.company?.company_id || role !== S.role || days !== S.newsDays)
       return;
     S.news = result;
+    if (
+      S.quick.result &&
+      !S.quick.loading &&
+      (S.quick.result.news_checked_at !== result.checked_at ||
+        S.quick.result.days !== result.window_days)
+    )
+      runWorkspaceSearch("all", true);
     updateNewsView();
     if (
       auto &&
@@ -1213,6 +1232,7 @@ function renderResearch(main) {
         "Вопрос, контекст компании и проверяемые основания.",
       ),
       composer(),
+      researchScopeNote(),
     );
     return;
   }
@@ -1237,26 +1257,9 @@ function renderResearch(main) {
         ),
       ),
     );
-    const labels = [
-      "Источники компании и банка",
-      "Поиск и углубление по вопросу",
-      "Вывод и ролевые срезы",
-      "Проверка перед публикацией",
-    ];
-    const phase = { SOURCES: 1, PLAN: 1, WRITE: 2, VERIFY: 3 }[j.phase] ?? 0;
-    const steps = node("ol", "steps");
-    labels.forEach((t, i) =>
-      steps.append(
-        add(
-          node("li", i < phase ? "done" : i === phase ? "current" : ""),
-          node("span", "step-number", i < phase ? "✓" : i + 1),
-          node("span", "", t),
-        ),
-      ),
-    );
     add(
       c,
-      steps,
+      renderResearchWorkflow(j),
       button(
         "Остановить",
         async () => {
@@ -1344,6 +1347,8 @@ function renderResearch(main) {
       ),
     );
   }
+  if (!["QUEUED", "RUNNING"].includes(j.status))
+    c.append(renderResearchWorkflow(j));
   c.append(traceDetails(j));
   main.append(c);
 }
@@ -1390,6 +1395,14 @@ function renderResult(main, j) {
   );
   title.append(actions);
   main.append(title);
+  if (j.parent_id)
+    main.append(
+      button(
+        "Исходное исследование",
+        () => loadJob(j.parent_id),
+        "text-button",
+      ),
+    );
   const summary = card();
   add(
     summary,
@@ -1576,10 +1589,13 @@ function renderResult(main, j) {
     suggestions.append(
       button(
         q,
-        () => {
-          input.value = q;
-          input.focus();
-        },
+        () =>
+          startResearch(q, {
+            parent_id: j.run_id,
+            planning_days: j.planning_days,
+            public_search: j.public_search,
+            job_title: activeRoleName(),
+          }),
         "chip",
       ),
     ),
@@ -1593,6 +1609,8 @@ function renderResult(main, j) {
     try {
       await startResearch(input.value, {
         parent_id: j.run_id,
+        planning_days: j.planning_days,
+        public_search: j.public_search,
         job_title: activeRoleName(),
       });
     } catch (error) {
@@ -1601,6 +1619,7 @@ function renderResult(main, j) {
   });
   follow.append(form);
   main.append(follow);
+  main.append(detail("Этапы и план исследования", renderResearchWorkflow(j)));
   const bottom = card();
   const feedback = add(
     node("div", "feedback"),
@@ -1766,8 +1785,12 @@ function exportReport(j) {
     j.company_name + " · " + j.job_title + " · " + date(r.as_of),
     "",
     "Статус: " + statusText(j.status),
-    j.quality_gate?.status === "reviewed_by_user" ? "Просмотрено пользователем. Независимая финансовая экспертиза не подтверждена." : "ЧЕРНОВИК. Перед использованием выводов требуется проверка источников и допущений.",
-    !j.quality_gate?.current_rules ? "Исторический результат: текущие правила проверки не применялись. Требуется новое исследование." : "",
+    j.quality_gate?.status === "reviewed_by_user"
+      ? "Просмотрено пользователем. Независимая финансовая экспертиза не подтверждена."
+      : "ЧЕРНОВИК. Перед использованием выводов требуется проверка источников и допущений.",
+    !j.quality_gate?.current_rules
+      ? "Исторический результат: текущие правила проверки не применялись. Требуется новое исследование."
+      : "",
     "",
     r.summary,
     "",
@@ -1851,6 +1874,7 @@ function renderCompany(main) {
   const left = node("div", "stack"),
     right = node("aside", "stack");
   main.append(renderCompanyContext());
+  left.append(renderWorkspaceSearch("company"));
   const docs = card();
   add(
     docs,
@@ -2165,6 +2189,19 @@ async function updateDocuments(cid) {
     api("/api/companies/" + cid + "/profile"),
   ]);
   if (S.company.company_id !== cid) return;
+  if (S.snapshot?.profile?.version !== snapshot.profile.version) {
+    const query = S.companySearch.query;
+    S.companySearch = { query, result: null, loading: false, error: null };
+    S.quick = {
+      query: S.quick.query,
+      result: null,
+      loading: false,
+      error: null,
+    };
+    updateWorkspaceSearch("all");
+    const search = $("#workspace-search-company");
+    if (search) search.replaceWith(renderWorkspaceSearch("company"));
+  }
   S.docs = docs;
   S.snapshot = snapshot;
   if (S.view === "company") {
@@ -2513,6 +2550,7 @@ async function selectCompany(id, persist = true) {
     clearTimeout(S.docPoll);
     clearTimeout(S.newsPoll);
     S.news = null;
+    resetWorkspaceViews();
     S.newsExpanded = false;
     S.job = null;
     S.legacy = null;
@@ -2740,9 +2778,12 @@ function help() {
 document
   .querySelectorAll("[data-icon]")
   .forEach((e) => e.append(icon(e.dataset.icon)));
-document
-  .querySelectorAll("[data-view]")
-  .forEach((b) => b.addEventListener("click", () => go(b.dataset.view)));
+document.querySelectorAll("[data-view]").forEach((b) =>
+  b.addEventListener("click", () => {
+    if (b.dataset.view === "research") S.job = null;
+    go(b.dataset.view);
+  }),
+);
 $("#mobile-menu").addEventListener("click", () => {
   const open = $("#sidebar").classList.toggle("open");
   $("#mobile-menu").setAttribute("aria-expanded", String(open));

@@ -101,6 +101,57 @@ def test_pg_operator_provisioning_is_safe_on_concurrent_replay(pg_services):
     assert service.accounts.login("pg-test-team", password) == accounts[0]
 
 
+def test_pg_saved_news_search_and_backup_retain_source_and_user_scope(pg_services, tmp_path):
+    import json
+    from alfa_agent.settings import utcnow
+    from alfa_agent.storage import new_id
+
+    source = pg_services()
+    user = source.accounts.register(
+        "pg-search-user", "synthetic-pg-search-password", "Тестовый Пользователь", "Синтетический банк", "CFO"
+    )
+    marker = current_principal.set(user)
+    try:
+        source.workspace.save_context(user.company_id, "Синтетический план: фондирование и ликвидность.", "")
+        stamp = utcnow().isoformat()
+        item = {
+            "news_id": "news_" + "c1" * 12,
+            "title": "Синтетический банк разместил облигации",
+            "publisher": "Тестовый источник",
+            "published_at": stamp,
+            "url": "https://example.org/synthetic-pg",
+            "excerpt": "Синтетическое фондирование.",
+            "text": "Синтетическое фондирование и ликвидность.",
+            "read_status": "article_read",
+        }
+        with source.store.connection() as db:
+            db.execute(
+                "INSERT INTO news_jobs(id,tenant,company_id,role,context_json,status,created_at,finished_at,result_json) VALUES(?,?,?,?,?,'SUCCEEDED',?,?,?)",
+                (
+                    new_id("newsjob"),
+                    user.user_id,
+                    user.company_id,
+                    "cfo",
+                    json.dumps(source.news.context(user.company_id)),
+                    stamp,
+                    stamp,
+                    json.dumps({"items": [item], "sources": []}),
+                ),
+            )
+        source.news.save_item(user.company_id, item["news_id"], True)
+        result = source.workspace_search.search(user.company_id, "фондирование")
+        assert result["news"] and result["company"]
+        path = tmp_path / "saved-news-backup.gz"
+        backup(source.store, path)
+        target = pg_services(seed_examples=False)
+        restore_into_empty(target.store, path)
+        assert target.news.saved_items(user.company_id)["total"] == 1
+        assert target.news.item(user.company_id, item["news_id"])["text"] == item["text"]
+        assert target.workspace_search.search(user.company_id, "ликвидность")["company"]
+    finally:
+        current_principal.reset(marker)
+
+
 def test_restore_can_skip_packaged_seed_in_an_actual_release_root(pg_services, tmp_path):
     original = pg_services(with_seed=True)
     saved = tmp_path / "seeded-runtime.gz"
