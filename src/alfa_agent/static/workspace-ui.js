@@ -150,6 +150,28 @@ function renderSearchResults(scope) {
     node("h3", "search-query-title", "По запросу «" + result.query + "»"),
     p(result.summary, "caption"),
   );
+  if (scope === "all" && result.news_checked_at)
+    c.append(
+      p(
+        "Подборка новостей обновлена " +
+          new Date(result.news_checked_at).toLocaleString("ru-RU", {
+            timeZone: "Europe/Moscow",
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          }) +
+          " МСК",
+        "caption",
+      ),
+    );
+  if (scope === "all" && result.news_status === "FAILED")
+    c.append(
+      box(
+        "Источники обновлены частично. Показаны последние доступные публикации.",
+        "amber",
+      ),
+    );
   if (result.empty_query_terms)
     c.append(
       p("Добавьте предмет поиска: название, событие, продукт или показатель."),

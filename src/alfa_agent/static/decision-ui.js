@@ -311,6 +311,20 @@ function renderDecisionOverview() {
   c.id = "decision-overview";
   add(c, node("h2", "", "Кратко: важные новости"));
   const items = (S.news?.items || []).slice(0, 3);
+  if (S.news?.status === "FAILED")
+    c.append(
+      box(
+        "Не удалось обновить все источники. Ниже — последняя доступная подборка; проверьте её время обновления.",
+        "amber",
+      ),
+    );
+  else if (S.news?.stale)
+    c.append(
+      p(
+        "Подборка требует обновления; доступные публикации сохранены с исходными датами.",
+        "fine-print",
+      ),
+    );
   if (!items.length) {
     c.append(
       p(
@@ -374,7 +388,14 @@ function renderDecisionOverview() {
     c.append(
       p(
         "Подборка обновлена " +
-          date(S.news.checked_at) +
+          new Date(S.news.checked_at).toLocaleString("ru-RU", {
+            timeZone: "Europe/Moscow",
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          }) +
+          " МСК" +
           " · публикации за " +
           S.newsDays +
           " дней",
