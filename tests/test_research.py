@@ -441,3 +441,56 @@ def test_explicit_global_role_is_not_reinferred_from_custom_job_title(service):
     asyncio.run(ResearchEngine(service.research, ResearchGateway()).once())
     result = service.research.get(job["run_id"])
     assert result["result"]["narrative"]["role"] == "other"
+
+
+def test_semantic_verifier_keeps_exact_evidence_without_duplicate_article_context():
+    from alfa_agent.research import semantic_verification_input
+
+    draft = ResearchDraft.model_validate(draft_for())
+    draft.narrative = {
+        "evidence": [
+            {
+                "anchor_id": "a1",
+                "source_id": "input_news",
+                "quote": NEWS,
+                "published_at": "2026-10-23",
+                "publisher": "Тестовый источник",
+                "context_key": None,
+                "page": 3,
+            }
+        ]
+    }
+    original = draft.model_dump(mode="json")
+    sources = [
+        {
+            "source_id": "input_news",
+            "kind": "user_news",
+            "text": NEWS + " Сохранённый исходный текст." * 5000,
+            "publisher": "Тестовый источник",
+            "published_at": "2026-10-23",
+            "review_status": "user_supplied",
+        },
+        {"source_id": "unused", "kind": "search_lead", "text": "Нерелевантный текст" * 5000},
+    ]
+    payload = semantic_verification_input(draft, sources)
+    assert len(json.dumps(payload, ensure_ascii=False)) < 10000
+    assert payload["draft"]["findings"][0]["citations"][0]["quote"] == NEWS
+    assert payload["draft"]["narrative"]["evidence"][0]["quote"] == NEWS
+    assert payload["draft"]["narrative"]["evidence"][0]["page"] == 3
+    assert len(payload["sources"]) == 1 and payload["sources"][0]["published_at"] == "2026-10-23"
+    assert payload["sources"][0]["publisher"] == "Тестовый источник"
+    assert draft.model_dump(mode="json") == original
+
+
+def test_draft_header_uses_same_calendar_normalization_as_narrative():
+    draft = ResearchDraft.model_validate(draft_for())
+    quote = "Решение принято 23 октября 2026 года."
+    draft.title = "Решение 23.10 требует проверки применимости"
+    draft.narrative = {"evidence": [{"source_id": "calendar", "quote": quote, "published_at": "2026-10-23"}]}
+    sources = [
+        {"source_id": "input_news", "kind": "user_news", "text": NEWS},
+        {"source_id": "calendar", "kind": "public_page", "text": quote},
+    ]
+    assert validate_draft(draft, sources) == []
+    draft.title = "Решение требует проверки эффекта в размере 777 рублей"
+    assert "unsupported_summary_number" in validate_draft(draft, sources)

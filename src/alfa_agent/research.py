@@ -558,7 +558,12 @@ def validate_draft(draft, sources, *, bank_company=False):
             if not source or normalized(anchor.get("quote", "")) not in normalized(source.get("text", "")):
                 issues.append("narrative_quote_not_in_source")
             quoted.append(anchor.get("quote", ""))
-    if not numbers(draft.title + " " + draft.summary) <= numbers(" ".join(quoted)):
+            quoted.append(anchor.get("published_at") or "")
+    from .narrative import numeric_text
+
+    if not numbers(numeric_text(draft.title + " " + draft.summary)) <= numbers(
+        numeric_text(" ".join(quoted))
+    ):
         issues.append("unsupported_summary_number")
     roles = set()
     for view in draft.role_views:
@@ -578,6 +583,45 @@ def validate_draft(draft, sources, *, bank_company=False):
     if bank_company and re.search(r"экономи\w* (?:на |по )?процент\w* расход\w*", draft.summary, re.I):
         issues.append("bank_alm_cannot_be_replaced_with_corporate_debt_formula")
     return list(dict.fromkeys(issues))
+
+
+def semantic_verification_input(draft, sources):
+    """Exact checked quotations once; source metadata without repeating full articles."""
+    data = draft.model_dump(mode="json")
+    used = {c.source_id for finding in draft.findings for c in finding.citations}
+    if data.get("narrative"):
+        evidence = data["narrative"].get("evidence", [])
+        used.update(a["source_id"] for a in evidence)
+        data["narrative"]["evidence"] = [
+            {k: a[k] for k in ("anchor_id", "source_id", "quote", "page", "context_key") if k in a}
+            for a in evidence
+        ]
+    metadata_keys = {
+        "source_id",
+        "kind",
+        "title",
+        "publisher",
+        "published_at",
+        "publication_date_raw",
+        "url",
+        "page",
+        "review_status",
+        "claim_type",
+        "claim_owner",
+        "forecast_horizon",
+        "context_key",
+        "limitations",
+        "news_item",
+        "provided_for_current_question",
+        "bank_owner_explicit",
+    }
+    return {
+        "draft": data,
+        "sources": [
+            {k: v for k, v in s.items() if k in metadata_keys} for s in sources if s["source_id"] in used
+        ],
+        "source_scope": "Точные цитаты проверены сервером по сохранённым полным текстам. Семантическая проверка здесь ограничена приведёнными цитатами и метаданными, не является независимой проверкой истинности источника.",
+    }
 
 
 class ResearchService:
@@ -1397,10 +1441,10 @@ class ResearchEngine:
                         {
                             "task": request["question"],
                             "company_name": request["company_name"],
+                            "role": request["role"],
                             "bank_company": request["bank_company"],
                             "as_of": request["as_of"],
-                            "draft": draft.model_dump(),
-                            "sources": model_context()["sources"],
+                            **semantic_verification_input(draft, state["sources"]),
                         },
                     )
                     if not verdict.approved:
