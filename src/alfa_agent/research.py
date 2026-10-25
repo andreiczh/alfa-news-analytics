@@ -22,6 +22,8 @@ from .news import news_source
 from .news_sources import article_matches, article_publication
 from .settings import utcnow
 from .storage import Conflict, NotFound, new_id
+from .analysis_policy import planning_policy, POLICY_VERSION
+from .personalization import is_bank_company
 from .research_rules import RULES, BANK_ROLES, COMPANY_ROLES
 from .narrative import (
     DecisionNarrative,
@@ -36,6 +38,16 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+def fresh_news_intent(question):
+    return bool(
+        re.search(
+            r"свеж|последн\w*\s+(?:новост|событ|изменени|публикац)|текущ\w*\s+(?:новост|ситуац)|что\s+происходит[^?]{0,100}сейчас|за\s+(?:(?:7|семь)\s+дн|неделю)",
+            question,
+            re.I,
+        )
+    )
+
+
 class ResearchRequest(Strict):
     company_id: str = Field(max_length=100)
     question: str = Field(min_length=12, max_length=1500)
@@ -47,6 +59,8 @@ class ResearchRequest(Strict):
     parent_id: str | None = Field(default=None, max_length=100)
     bank_document_id: str | None = Field(default=None, max_length=100)
     news_item_id: str | None = Field(default=None, pattern=r"^news_[a-f0-9]{24}$")
+    planning_days: Literal[7, 30, 90, 365] = 30
+    allow_partial: bool = True
 
 
 class ResearchAction(Strict):
@@ -436,6 +450,49 @@ def news_headline_quote(source):
     return max(sentences, key=lambda item: item[0])[1] if sentences else None
 
 
+def evidence_passages(text, limit=580):
+    """Keep sentence boundaries and exact source characters, rather than word windows.
+
+    Oversized sentences are retained as retrieval fragments but excluded from a
+    standalone source message. They can still ground a properly limited inference.
+    """
+    ends = [m.end() for m in re.finditer(r"(?<!\d)[.!?](?!\d)(?=\s|$)", text)]
+    if not ends or ends[-1] != len(text):
+        ends.append(len(text))
+    start, group, group_start = 0, "", 0
+    result = []
+    for end in ends:
+        sentence_start = start + len(text[start:end]) - len(text[start:end].lstrip())
+        sentence = text[start:end].strip()
+        start = end
+        if not sentence:
+            continue
+        if len(sentence) > limit:
+            if group:
+                result.append((group, True))
+                group = ""
+            for offset in range(0, len(sentence), 480):
+                begin = 0 if not offset else sentence.find(" ", offset)
+                if begin < 0:
+                    continue
+                finish = min(begin + limit, len(sentence))
+                if finish < len(sentence):
+                    finish = max(begin, sentence.rfind(" ", begin, finish))
+                result.append((sentence[begin:finish].strip(), False))
+        elif group and len(text[group_start:end].strip()) > limit:
+            result.append((group, True))
+            group = sentence
+            group_start = sentence_start
+        else:
+            # Preserve the source whitespace exactly when combining adjacent sentences.
+            if not group:
+                group_start = sentence_start
+            group = text[group_start:end].strip()
+    if group:
+        result.append((group, True))
+    return [(quote, complete) for quote, complete in result if len(quote) >= 30]
+
+
 def evidence_ledger(sources, question):
     """The host owns quotations. The model selects small opaque anchors, not new quotes."""
     ledger, wanted = [], terms(question)
@@ -458,25 +515,17 @@ def evidence_ledger(sources, question):
             continue
         text = source.get("text", "")
         candidates = []
-        for start in range(0, len(text), 480):
-            begin = 0 if not start else text.find(" ", start)
-            if begin < 0:
-                continue
-            end = min(begin + 580, len(text))
-            if end < len(text):
-                end = max(begin, text.rfind(" ", begin, end))
-            quote = text[begin:end].strip()
-            if len(quote) < 30:
-                continue
-            candidates.append((len(terms(quote) & wanted), quote))
+        for quote, complete in evidence_passages(text):
+            candidates.append((len(terms(quote) & wanted), quote, complete))
         candidates.sort(key=lambda x: x[0], reverse=True)
-        for _, quote in candidates[:2]:
+        for _, quote, complete in candidates[:2]:
             ledger.append(
                 {
                     "anchor_id": "a" + str(len(ledger) + 1),
                     "context_key": source.get("context_key"),
                     "source_id": source["source_id"],
                     "quote": quote,
+                    "excerpt_complete": complete,
                     "kind": source["kind"],
                     "title": source.get("title"),
                     "published_at": source.get("published_at"),
@@ -637,6 +686,9 @@ class ResearchService:
               created_at TEXT NOT NULL,lease_until REAL,favorite INTEGER NOT NULL DEFAULT 0,
               UNIQUE(tenant,idem));
             CREATE INDEX IF NOT EXISTS research_queue ON research_jobs(status,created_at);
+            CREATE TABLE IF NOT EXISTS research_reviews(run_id TEXT PRIMARY KEY,tenant TEXT NOT NULL,
+              verdict TEXT NOT NULL,comment TEXT NOT NULL,reviewed_by TEXT NOT NULL,
+              reviewed_at TEXT NOT NULL,result_hash TEXT NOT NULL);
             """)
 
     def create(self, request, idem):
@@ -695,10 +747,8 @@ class ResearchService:
             snapshot_id=snapshot["snapshot_id"],
             as_of=utcnow().isoformat(),
             company_name=company_name,
-            bank_company=bool(re.search(r"банк|\bbank\b", company_name, re.I)),
-            fresh_news_requested=bool(
-                re.search(r"свеж|последн|текущ|сейчас|за (?:7|семь) дн|за неделю", request.question, re.I)
-            ),
+            bank_company=is_bank_company(company_name, snapshot),
+            fresh_news_requested=fresh_news_intent(request.question),
         )
         if parent and parent.get("result"):
             raw["previous_summary"] = parent["result"]["summary"]
@@ -771,6 +821,16 @@ class ResearchService:
         }
         run_id = new_id("research")
         with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            old = db.execute(
+                "SELECT id,payload_hash FROM research_jobs WHERE tenant=? AND idem=?",
+                (self.service.tenant, idem),
+            ).fetchone()
+            if old:
+                if old["payload_hash"] != digest:
+                    raise Conflict("idempotency_payload_mismatch")
+                return self.get(old["id"])
+            self.service.check_paid_admission(db, self.service.tenant)
             db.execute(
                 "INSERT INTO research_jobs(id,tenant,company_id,idem,payload_hash,input_json,state_json,status,version,created_at) VALUES(?,?,?,?,?,?,?,'QUEUED',1,?)",
                 (
@@ -800,6 +860,15 @@ class ResearchService:
             if (utcnow() - datetime.fromisoformat(row["created_at"])).total_seconds() > 86400:
                 continue
             result = json.loads(row["result_json"] or "{}")
+            if result.get("verification", {}).get("policy_version") != POLICY_VERSION:
+                continue
+            with self.store.connection() as db:
+                review = db.execute(
+                    "SELECT verdict FROM research_reviews WHERE run_id=? AND tenant=?",
+                    (row["id"], self.service.tenant),
+                ).fetchone()
+            if review and review[0] == "rejected":
+                continue
             narrative = result.get("narrative") or {}
             if (
                 narrative.get("role") != role
@@ -842,6 +911,18 @@ class ResearchService:
                 {"at": r["at"], "node": r["node"], "event": r["event"], "data": json.loads(r["data_json"])}
                 for r in db.execute("SELECT * FROM audit WHERE run_id=? ORDER BY seq", (run_id,))
             ]
+            review = db.execute(
+                "SELECT * FROM research_reviews WHERE run_id=? AND tenant=?", (run_id, self.service.tenant)
+            ).fetchone()
+        current_rules = (state.get("verification") or {}).get("policy_version") == POLICY_VERSION
+        review = dict(review) if review else None
+        digest = (
+            hashlib.sha256(json.dumps(row["result"], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+            if row["result"]
+            else None
+        )
+        if review and review["result_hash"] != digest:
+            review = None
         return {
             "run_id": row["id"],
             "company_id": row["company_id"],
@@ -856,6 +937,21 @@ class ResearchService:
             "result": row["result"],
             "sources": state["sources"],
             "trace": trace,
+            "user_review": review,
+            "quality_gate": {
+                "current_rules": current_rules,
+                "status": "not_generated"
+                if not row["result"]
+                else "legacy_requires_regeneration"
+                if not current_rules
+                else "reviewed_by_user"
+                if review and review["verdict"] == "accepted"
+                else "rejected_by_user"
+                if review
+                else "draft_requires_review",
+                "independent_expert_verified": False,
+                "scope": "Автоматическая проверка и просмотр пользователем различаются; финансовая экспертиза не подтверждена.",
+            },
             **{
                 k: state.get(k)
                 for k in (
@@ -870,6 +966,34 @@ class ResearchService:
                 )
             },
         }
+
+    def review(self, run_id, verdict, comment):
+        from .identity import current_principal
+
+        job = self.get(run_id)
+        principal = current_principal.get()
+        if not principal or not job["result"] or not job["quality_gate"]["current_rules"]:
+            raise Conflict("current_verified_result_and_account_required")
+        if not (job.get("verification") or {}).get("passed"):
+            raise Conflict("verified_result_not_ready")
+        digest = hashlib.sha256(
+            json.dumps(job["result"], ensure_ascii=False, sort_keys=True).encode()
+        ).hexdigest()
+        with self.store.connection() as db:
+            db.execute(
+                "INSERT INTO research_reviews VALUES(?,?,?,?,?,?,?) ON CONFLICT(run_id) DO UPDATE SET verdict=excluded.verdict,comment=excluded.comment,reviewed_by=excluded.reviewed_by,reviewed_at=excluded.reviewed_at,result_hash=excluded.result_hash",
+                (
+                    run_id,
+                    self.service.tenant,
+                    verdict,
+                    comment,
+                    principal.user_id,
+                    utcnow().isoformat(),
+                    digest,
+                ),
+            )
+            self.service.accounts.event(db, principal.user_id, "research_user_" + verdict, job["company_id"])
+        return self.get(run_id)["quality_gate"]
 
     def history(self, company_id):
         self.service.authorize_company(company_id)
@@ -1086,6 +1210,7 @@ class ResearchEngine:
             ]
             return {
                 "question": request["question"],
+                "allow_partial": request.get("allow_partial", True),
                 "previous_summary": request.get("previous_summary"),
                 "company": {
                     "name": request["company_name"],
@@ -1319,6 +1444,23 @@ class ResearchEngine:
                             and action.questions
                             and state["replans"] < self.settings.max_replans
                         ):
+                            available = evidence_ledger(state["sources"], request["question"])
+                            if (
+                                request.get("allow_partial", True)
+                                and "company" in state["used_tools"]
+                                and any(
+                                    a["kind"] in {"bank_claim", "bank_excerpt", "public_page", "user_news"}
+                                    for a in available
+                                )
+                            ):
+                                audit(
+                                    "partial_instead_of_missing_data_question",
+                                    {
+                                        "questions": action.questions,
+                                        "reason": "Есть источники для частичного вывода; неизвестные показатели не подставляются.",
+                                    },
+                                )
+                                continue
                             state.update(phase="WAITING_INPUT", questions=action.questions)
                             save(status="WAITING_INPUT")
                             audit("question_created", {"questions": action.questions})
@@ -1372,6 +1514,9 @@ class ResearchEngine:
                         "job_title": request["job_title"],
                         "role": request["role"],
                         "as_of": request["as_of"],
+                        "analysis_policy": planning_policy(
+                            request["as_of"], request.get("planning_days", 30)
+                        ),
                         "selected_news_source_id": request.get("news_item_id"),
                         "evidence_ledger": ledger,
                         "verification_issues": state["issues"],
@@ -1386,14 +1531,44 @@ class ResearchEngine:
                             "research_narrative",
                             DecisionNarrative,
                             narrative_payload,
-                            decision_schema(ledger, snapshot.get("context", {})),
+                            decision_schema(
+                                ledger, snapshot.get("context", {}), narrative_payload["analysis_policy"]
+                            ),
                         )
+                        # Used context is server-owned metadata, derived from the
+                        # actual citations, not from a model's assertion of usage.
+                        used = {
+                            aid
+                            for point in [
+                                narrative.main_conclusion,
+                                *narrative.situation,
+                                *narrative.drivers,
+                                *narrative.company_impact,
+                                *narrative.risks,
+                                *narrative.opportunities,
+                                *narrative.recommendations,
+                            ]
+                            for aid in point.anchor_ids
+                        }
+                        used.update(aid for scenario in narrative.scenarios for aid in scenario.anchor_ids)
+                        narrative.context_keys = sorted(
+                            key
+                            for key in snapshot.get("context", {}).get("fields", {})
+                            if any(
+                                a["anchor_id"] in used
+                                and (a.get("context_key") == key or "_context_" + key + "_" in a["source_id"])
+                                for a in ledger
+                            )
+                        )[:8]
                         issues = validate_narrative(
                             narrative,
                             ledger,
                             snapshot.get("context", {}),
                             request["bank_company"],
                             request.get("news_item_id"),
+                            as_of=request["as_of"],
+                            planning_days=request.get("planning_days", 30),
+                            profile=snapshot["profile"],
                         )
                         if not issues and request.get("news_item_id"):
                             anchors = {a["anchor_id"]: a for a in ledger}
@@ -1434,6 +1609,11 @@ class ResearchEngine:
                             snapshot.get("context", {}).get("revision", 0),
                         )
                         draft.title, draft.summary = narrative.title, narrative.main_conclusion.text
+                        draft.narrative["planning_policy"] = narrative_payload["analysis_policy"]
+                        draft.narrative["financial_scope"] = {
+                            "net_company_effect": "not_calculated",
+                            "reason": "Нет модели баланса и чувствительности компании; описаны условные каналы влияния.",
+                        }
                         issues = validate_draft(draft, state["sources"], bank_company=request["bank_company"])
                 except ValueError as failure:
                     draft, issues = None, [str(failure)]
@@ -1469,6 +1649,7 @@ class ResearchEngine:
                     "quote_and_number_checks": True,
                     "semantic_check": bool(verdict),
                     "human_verified": False,
+                    "policy_version": POLICY_VERSION,
                     "scope": verdict.scope_note if verdict else None,
                     "warnings": verdict.issues if verdict and verdict.approved else [],
                 }

@@ -1,5 +1,11 @@
 # Third-party notices
 
+## Version 0.6 additions
+
+- psycopg 3.3.6, psycopg-binary 3.3.6, psycopg-pool 3.3.3: LGPL-3.0-only, as declared in installed distribution metadata. Bundled native components retain their own notices; consult the distributions' license files. Used for PostgreSQL connections and pooling, not agent orchestration.
+- GitHub Actions checkout/setup-python (MIT) and setup-uv (MIT/Apache-2.0): CI only, pinned to the verified upstream commit IDs in the workflow. No organizer API credentials are provided to CI.
+- Password derivation uses Python's standard-library PBKDF2-HMAC-SHA256; no additional authentication service or external LLM provider is introduced.
+
 ## Version 0.4 additions
 
 - Bank of Russia public RSS: `https://www.cbr.ru/rss/RssPress`, `/rss/eventrss`, `/rss/RssNews`; official channel register: `https://cbr.ru/development/RSS/`.

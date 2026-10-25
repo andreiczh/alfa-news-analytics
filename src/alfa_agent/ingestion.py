@@ -253,7 +253,7 @@ class DocumentProcessor:
         progress = json.loads(job["progress_json"])
         try:
             row = self.workspace.file_row(job["company_id"], job["document_id"])
-            path = self.workspace.upload_dir / row["stored_name"]
+            path = self.workspace.file_path(row)
             if "parsed" not in progress:
                 progress["parsed"] = await asyncio.to_thread(parse_in_process, path)
                 progress["ocr_done"] = []

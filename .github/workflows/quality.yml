@@ -1,0 +1,47 @@
+name: Quality and Docker
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.14'
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff
+        with:
+          version: '0.12.19'
+      - run: uv sync --frozen
+      - run: uv run --frozen pytest -q
+      - run: uv run --frozen ruff check src tests scripts
+      - run: node --check src/alfa_agent/static/app.js && node --check src/alfa_agent/static/decision-ui.js
+      - run: uv run --frozen python scripts/evaluate_news.py
+      - run: docker build --tag alfa-agent:ci .
+      - name: Container startup and worker readiness
+        run: |
+          docker run --detach --name alfa-smoke \
+            -e ALFA_ACCESS_PASSWORD=synthetic-ci-invitation-code \
+            -e ALFA_SESSION_SECRET=synthetic-ci-signing-secret-not-for-real-use \
+            -e ALFA_AUTH_MODE=accounts -e ALFA_REQUIRE_WORKER=1 \
+            -e ALFA_PUBLIC_DEPLOYMENT=1 -e ALFA_ALLOWED_HOSTS=localhost \
+            -p 127.0.0.1:18765:8765 alfa-agent:ci
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://localhost:18765/api/health > /tmp/alfa-health.json; then break; fi
+            sleep 2
+          done
+          python -c "import json; p=json.load(open('/tmp/alfa-health.json')); assert p['status']=='ok' and p['auth_mode']=='accounts' and p['readiness']['worker']=='ok'"
+      - name: Container diagnostics
+        if: failure()
+        run: docker logs alfa-smoke || true
+      - name: Stop test container
+        if: always()
+        run: docker rm --force alfa-smoke || true

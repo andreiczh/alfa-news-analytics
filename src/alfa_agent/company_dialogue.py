@@ -202,6 +202,7 @@ class ContextService:
                 >= 20
             ):
                 raise Conflict("context_queue_limit")
+            self.service.check_paid_admission(db, self.service.tenant)
             db.execute(
                 "INSERT INTO context_turns VALUES(?,?,?,?,?,?,NULL,'QUEUED',?,NULL,NULL,NULL,NULL)",
                 (

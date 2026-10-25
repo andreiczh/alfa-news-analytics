@@ -1,6 +1,9 @@
 import asyncio
 import fcntl
 import os
+import hashlib
+import logging
+from starlette.concurrency import run_in_threadpool
 
 from .engine import Engine
 from .gateway import LiveGateway
@@ -9,6 +12,7 @@ from .settings import Settings
 from .ingestion import DocumentProcessor
 from .research import ResearchEngine
 from .company_dialogue import ContextEngine
+from .storage import new_id
 
 
 async def work(once=False, settings=None):
@@ -32,6 +36,34 @@ async def work(once=False, settings=None):
 
     monitor = asyncio.create_task(watch_parent()) if owner else None
     service = Service(settings)
+    database_lock, lock_key = None, None
+    if service.store.pool:
+        database_lock = service.store.pool.getconn()
+        lock_key = int(
+            hashlib.sha256(("alfa-worker:" + settings.database_schema).encode()).hexdigest()[:15], 16
+        )
+        acquired = database_lock.execute("SELECT pg_try_advisory_lock(%s)", (lock_key,)).fetchone()[0]
+        database_lock.commit()
+        if not acquired:
+            service.store.pool.putconn(database_lock)
+            service.corpus.close()
+            service.store.close()
+            if monitor:
+                monitor.cancel()
+            lock.close()
+            return None
+    worker_id = new_id("worker")
+
+    async def heartbeat():
+        while True:
+            try:
+                await run_in_threadpool(service.operations.heartbeat, worker_id)
+            except Exception:
+                logging.getLogger("alfa.operations").error("worker_heartbeat_failed")
+            await asyncio.sleep(5)
+
+    await run_in_threadpool(service.operations.heartbeat, worker_id)
+    heartbeat_task = asyncio.create_task(heartbeat())
     gateway = LiveGateway(settings, service.store)
     engine = Engine(settings, service.store, service.corpus, gateway)
     processor = DocumentProcessor(service.workspace, gateway)
@@ -57,11 +89,18 @@ async def work(once=False, settings=None):
             raise
     finally:
         news_task.cancel()
+        heartbeat_task.cancel()
         await asyncio.gather(news_task, return_exceptions=True)
+        await asyncio.gather(heartbeat_task, return_exceptions=True)
         if monitor:
             monitor.cancel()
         await gateway.close()
         service.corpus.close()
+        if database_lock:
+            database_lock.execute("SELECT pg_advisory_unlock(%s)", (lock_key,))
+            database_lock.commit()
+            service.store.pool.putconn(database_lock)
+        service.store.close()
         lock.close()
 
 

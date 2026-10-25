@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -48,6 +49,9 @@ class Workspace:
               company_id TEXT NOT NULL,event_id TEXT NOT NULL,run_id TEXT,created_at TEXT NOT NULL,
               PRIMARY KEY(company_id,event_id));
             CREATE TABLE IF NOT EXISTS company_access(company_id TEXT PRIMARY KEY,user_id TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS company_members(company_id TEXT NOT NULL,user_id TEXT NOT NULL,
+              permission TEXT NOT NULL,active INTEGER NOT NULL,joined_at TEXT NOT NULL,
+              PRIMARY KEY(company_id,user_id));
             CREATE TABLE IF NOT EXISTS employee_profiles(user_id TEXT PRIMARY KEY,company_id TEXT NOT NULL,
               full_name TEXT NOT NULL,company_name TEXT NOT NULL,job_title TEXT NOT NULL,role TEXT NOT NULL,created_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS company_strategy(company_id TEXT PRIMARY KEY,
@@ -55,6 +59,8 @@ class Workspace:
             CREATE TABLE IF NOT EXISTS company_context(company_id TEXT PRIMARY KEY,text TEXT NOT NULL,website TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS user_favorites(user_id TEXT NOT NULL,company_id TEXT NOT NULL,event_id TEXT NOT NULL,run_id TEXT,created_at TEXT NOT NULL,PRIMARY KEY(user_id,company_id,event_id));
             CREATE INDEX IF NOT EXISTS files_company ON company_files(company_id,created_at);
+            CREATE TABLE IF NOT EXISTS company_file_blobs(document_id TEXT PRIMARY KEY,
+              content BLOB NOT NULL,sha256 TEXT NOT NULL);
             """)
 
     def custom_exists(self, company_id):
@@ -83,14 +89,28 @@ class Workspace:
         with self.store.connection() as db:
             return bool(
                 db.execute(
-                    "SELECT 1 FROM company_access WHERE company_id=? AND user_id=?",
-                    (company_id, principal.user_id),
+                    "SELECT 1 FROM company_members WHERE company_id=? AND user_id=? AND active=1 UNION SELECT 1 FROM company_access a WHERE a.company_id=? AND a.user_id=? AND NOT EXISTS(SELECT 1 FROM company_members m WHERE m.company_id=a.company_id AND m.user_id=a.user_id)",
+                    (company_id, principal.user_id, company_id, principal.user_id),
                 ).fetchone()
             )
 
     def require_writable(self, company_id):
-        if not self.owned(company_id):
+        if not self.writable(company_id):
             raise AccessDenied("company_read_only")
+
+    def writable(self, company_id):
+        if not self.owned(company_id):
+            return False
+        principal = current_principal.get()
+        if principal:
+            with self.store.connection() as db:
+                member = db.execute(
+                    "SELECT permission FROM company_members WHERE company_id=? AND user_id=? AND active=1",
+                    (company_id, principal.user_id),
+                ).fetchone()
+            if member and member[0] == "viewer":
+                return False
+        return True
 
     def context(self, company_id):
         with self.store.connection() as db:
@@ -146,7 +166,7 @@ class Workspace:
             )
             db.execute(
                 """INSERT INTO company_strategy VALUES(?,1,'{}',?) ON CONFLICT(company_id)
-                DO UPDATE SET revision=revision+1,updated_at=excluded.updated_at""",
+                DO UPDATE SET revision=company_strategy.revision+1,updated_at=excluded.updated_at""",
                 (company_id, utcnow().isoformat()),
             )
             db.execute("UPDATE company_versions SET version=version+1 WHERE company_id=?", (company_id,))
@@ -163,6 +183,10 @@ class Workspace:
             owner_id = owner_id or (principal.user_id if principal else None)
             if owner_id:
                 db.execute("INSERT INTO company_access VALUES(?,?)", (cid, owner_id))
+                db.execute(
+                    "INSERT INTO company_members VALUES(?,?,?,1,?)",
+                    (cid, owner_id, "owner", utcnow().isoformat()),
+                )
         return {"company_id": cid, "label": name, "source": "company_upload", "synthetic": False}
 
     def _custom_base(self, company_id):
@@ -391,6 +415,12 @@ class Workspace:
 
     @staticmethod
     def _value_key(feature):
+        if feature.name == "industry" and feature.text_value:
+            value = re.sub(r"^(?:компания|отрасль)\s*[:—-]?\s*", "", feature.text_value.casefold()).strip(
+                " ."
+            )
+            if value in {"банк", "банковские услуги", "банковская деятельность", "денежное посредничество"}:
+                return ("industry:bank", feature.boolean_value, None)
         if feature.numeric_value:
             n = feature.numeric_value
             return (
@@ -432,6 +462,12 @@ class Workspace:
             ).fetchone()
             if quota[0] >= 20 or quota[1] + len(content) > 100 * 1024 * 1024:
                 raise UploadError("company_upload_quota")
+            total = db.execute("SELECT COALESCE(SUM(bytes),0) FROM company_files").fetchone()[0]
+            if total + len(content) > 250 * 1024 * 1024:
+                raise UploadError("pilot_storage_quota")
+            if hasattr(self.store, "admission"):
+                principal = current_principal.get()
+                self.store.admission(db, principal.user_id if principal else "demo")
             did, jid = new_id("upload"), new_id("ingest")
             stored_name = did + ext
             path = self.upload_dir / stored_name
@@ -448,10 +484,33 @@ class Workspace:
                     "INSERT INTO document_jobs(id,company_id,document_id,status,phase,created_at) VALUES(?,?,?,'QUEUED','parse',?)",
                     (jid, company_id, did, now),
                 )
+                db.execute("INSERT INTO company_file_blobs VALUES(?,?,?)", (did, content, sha))
             except BaseException:
                 path.unlink(missing_ok=True)
                 raise
         return self.file_info(company_id, did), True
+
+    def file_path(self, row):
+        """Raw originals live in the transactional store; disk is a verified local cache."""
+        path = self.upload_dir / row["stored_name"]
+        if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == row["sha256"]:
+            return path
+        with self.store.connection() as db:
+            blob = db.execute(
+                "SELECT content,sha256 FROM company_file_blobs WHERE document_id=?", (row["id"],)
+            ).fetchone()
+        if (
+            not blob
+            or hashlib.sha256(bytes(blob[0])).hexdigest() != row["sha256"]
+            or blob[1] != row["sha256"]
+        ):
+            raise UploadError("document_original_unavailable")
+        temporary = path.with_suffix(path.suffix + "." + new_id("cache"))
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as target:
+            target.write(bytes(blob[0]))
+        temporary.replace(path)
+        return path
 
     def file_row(self, company_id, document_id):
         with self.store.connection() as db:
@@ -573,7 +632,7 @@ class Workspace:
                 ),
             )
             db.execute(
-                "INSERT INTO company_versions VALUES(?,2) ON CONFLICT(company_id) DO UPDATE SET version=version+1",
+                "INSERT INTO company_versions VALUES(?,2) ON CONFLICT(company_id) DO UPDATE SET version=company_versions.version+1",
                 (job["company_id"],),
             )
             db.execute(
@@ -616,7 +675,7 @@ class Workspace:
             if changed != 1:
                 raise Conflict("document_state_changed")
             db.execute(
-                "INSERT INTO company_versions VALUES(?,2) ON CONFLICT(company_id) DO UPDATE SET version=version+1",
+                "INSERT INTO company_versions VALUES(?,2) ON CONFLICT(company_id) DO UPDATE SET version=company_versions.version+1",
                 (company_id,),
             )
         return self.file_info(company_id, document_id)

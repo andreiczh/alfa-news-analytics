@@ -6,7 +6,7 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .identity import current_principal, role_for
+from .identity import current_principal, role_for, PUBLIC_DEMO_COMPANIES
 from .settings import utcnow
 
 ROLE_NAMES = {
@@ -43,6 +43,20 @@ class Personalization:
             row = db.execute(
                 "SELECT * FROM user_preferences WHERE user_id=?", (principal.user_id,)
             ).fetchone()
+        if (
+            row
+            and row["company_id"] not in PUBLIC_DEMO_COMPANIES
+            and self.service.workspace.custom_exists(row["company_id"])
+            and not self.service.workspace.owned(row["company_id"])
+        ):
+            with self.store.connection() as db:
+                db.execute(
+                    "UPDATE user_preferences SET company_id=?,updated_at=? WHERE user_id=?",
+                    (principal.company_id, utcnow().isoformat(), principal.user_id),
+                )
+                row = db.execute(
+                    "SELECT * FROM user_preferences WHERE user_id=?", (principal.user_id,)
+                ).fetchone()
         return (
             dict(row)
             if row
@@ -76,4 +90,20 @@ def marked_test_context(text):
             text,
             re.I,
         )
+    )
+
+
+def is_bank_company(name, snapshot):
+    """Use the declared industry as well as the name; a mention of a lender is no exposure."""
+    features = {
+        f["name"]: f
+        for f in snapshot.get("profile", {}).get("features", [])
+        if f.get("status") not in {"missing", "conflicting"}
+    }
+    industry = features.get("industry", {}).get("text_value") or ""
+    field = snapshot.get("context", {}).get("fields", {}).get("industry", {})
+    industry += " " + field.get("value", "")
+    return bool(
+        re.search(r"банк\b|bank\b", name, re.I)
+        or re.search(r"\bбанк\b|банковск|денежн\w*\s+посреднич|кредитн\w*\s+организац", industry, re.I)
     )

@@ -5,8 +5,6 @@ import asyncio
 import json
 import os
 from pathlib import Path
-import subprocess
-import sys
 import time
 
 from .engine import Engine
@@ -70,9 +68,28 @@ def main():
     run.add_argument("--days", type=int, default=90)
     run.add_argument("--output", default="reports/live-insight.html")
     commands.add_parser("status", help="Только наличие конфигурации, без секрета")
+    backup = commands.add_parser("backup-state", help="Приватная переносимая резервная копия")
+    backup.add_argument("--output", required=True)
+    restore = commands.add_parser("restore-state", help="Восстановить только в пустое хранилище")
+    restore.add_argument("--input", required=True)
+    restore.add_argument("--into-empty", action="store_true", required=True)
     args = parser.parse_args()
     settings = Settings()
-    if args.command == "build-case-index":
+    if args.command in {"backup-state", "restore-state"}:
+        from .operations import backup, restore_into_empty
+
+        service = Service(settings, seed_examples=args.command != "restore-state")
+        try:
+            result = (
+                backup(service.store, Path(args.output))
+                if args.command == "backup-state"
+                else restore_into_empty(service.store, Path(args.input))
+            )
+            print(json.dumps(result))
+        finally:
+            service.corpus.close()
+            service.store.close()
+    elif args.command == "build-case-index":
         from .case_data import CaseData
 
         folder = settings.root / "deploy/case-index"
@@ -107,10 +124,9 @@ def main():
         if settings.public_deployment and not os.environ.get("ALFA_ACCESS_PASSWORD", "").strip():
             raise SystemExit("ALFA_ACCESS_PASSWORD is required for a public deployment")
 
-        child = subprocess.Popen(
-            [sys.executable, "-m", "alfa_agent", "worker"],
-            env={**os.environ, "ALFA_WORKER_PARENT_PID": str(os.getpid())},
-        )
+        from .supervisor import WorkerSupervisor
+
+        child = WorkerSupervisor()
         try:
             from .api import create_app
 
@@ -119,8 +135,4 @@ def main():
             app.state.worker_process = child
             uvicorn.run(app, host=host, port=args.port, access_log=False)
         finally:
-            child.terminate()
-            try:
-                child.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                child.kill()
+            child.stop()

@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+import threading
 import uuid
 
 from .settings import utcnow
@@ -23,10 +24,16 @@ class NotFound(Exception):
 
 
 class Store:
-    """Short SQLite transactions only. Never hold a transaction over HTTP."""
+    """Short SQLite/PostgreSQL transactions. Never hold a transaction over HTTP."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, database_url="", database_schema="public"):
         self.path = path
+        self._local = threading.local()
+        self.pool = None
+        if database_url:
+            from .postgres import create_pool
+
+            self.pool = create_pool(database_url, database_schema)
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connection() as db:
             db.executescript("""
@@ -65,6 +72,21 @@ class Store:
 
     @contextmanager
     def connection(self):
+        if self.pool:
+            from .postgres import Connection
+
+            current = getattr(self._local, "connection", None)
+            if current is not None:
+                with current.raw.transaction():
+                    yield current
+                return
+            with self.pool.connection() as connection, connection.transaction():
+                self._local.connection = Connection(connection)
+                try:
+                    yield self._local.connection
+                finally:
+                    self._local.connection = None
+            return
         db = sqlite3.connect(self.path, timeout=5)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA busy_timeout=5000")
@@ -76,6 +98,14 @@ class Store:
             raise
         finally:
             db.close()
+
+    def close(self):
+        if self.pool:
+            self.pool.close()
+
+    @property
+    def backend(self):
+        return "postgresql" if self.pool else "sqlite"
 
     def create(self, tenant, company, idem, payload, state):
         raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
@@ -90,6 +120,8 @@ class Store:
                 if old["payload_hash"] != digest:
                     raise Conflict("idempotency_payload_mismatch")
                 return old["id"], False
+            if hasattr(self, "admission"):
+                self.admission(db, tenant)
             run_id = state["run_id"]
             db.execute(
                 "INSERT INTO runs(id,tenant,company,idem,payload_hash,input_json,state_json,status,created_at) VALUES(?,?,?,?,?,?,?,?,?)",

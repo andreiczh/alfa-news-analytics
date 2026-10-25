@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 from .identity import role_for
+from .personalization import is_bank_company
 from .news_sources import publication_time
 
 TOPIC_RULES = {
@@ -37,7 +38,7 @@ TOPIC_RULES = {
     ),
     "operations": (
         "Операционные процессы",
-        r"сбо[йя]|кибер|утечк|недоступ|остановк|отключ|автоматизац|цифров\w* рубл|платежн\w* систем|платёжн\w* систем",
+        r"сбо[йя]|кибер|утечк|недоступ|остановк|приостанов|останов\w*\s+производ|отключ|автоматизац|цифров\w* рубл|платежн\w* систем|платёжн\w* систем",
     ),
     "demand": ("Спрос и продажи", r"спрос|продаж|потреблен|потреблен|розничн|выпуск\w* продукц"),
     "products": (
@@ -182,6 +183,21 @@ def normalize_name(value):
     return "".join(re.findall(r"[a-zа-яё0-9]+", value))
 
 
+def entity_matches(name, title):
+    """Whole names, optional separators and conservative Russian case endings."""
+    tokens = re.findall(r"[а-яёa-z0-9]+", name.casefold())
+    tokens = [t for t in tokens if t not in {"ооо", "пао", "оао", "ао", "зао", "ип", "ltd", "llc"}]
+    if not tokens or len("".join(tokens)) < 3:
+        return False
+    suffix = (
+        r"(?:а|у|ом|е|и|ов|ам|ами|ах)?"
+        if len(tokens[-1]) >= 4 and re.fullmatch(r"[а-яё]+", tokens[-1])
+        else ""
+    )
+    expression = r"(?<!\w)" + r"[\s\-—]*".join(re.escape(t) for t in tokens) + suffix + r"(?!\w)"
+    return bool(re.search(expression, title, re.I))
+
+
 def company_context(snapshot):
     features = snapshot.get("profile", {}).get("features", [])
     good = [
@@ -189,7 +205,7 @@ def company_context(snapshot):
     ]
     name = next((f.get("text_value") for f in good if f["name"] == "company_name"), "") or ""
     industry = next((f.get("text_value") for f in good if f["name"] == "industry"), "") or ""
-    bank = bool(re.search(r"банк|\bbank\b", name + " " + industry, re.I))
+    bank = is_bank_company(name, snapshot)
     exposure_topics = set()
     # Feature names alone never imply exposure: require a present value.
     for f in good:
@@ -276,8 +292,7 @@ def score_item(item, context, role, now, window_days=7):
         return None, "date_conflict"
     topics = topics_for(item)
     title = item["title"]
-    name_key = normalize_name(context["name"])
-    direct = not context["anonymous"] and len(name_key) >= 4 and name_key in normalize_name(title)
+    direct = not context["anonymous"] and entity_matches(context["name"], title)
     analyst = direct and bool(
         re.search(
             r"сохраняет оценку|оставляет рейтинг|для акций|наш прогноз|ожида[ею]т от цб|жд[её]м от цб",
@@ -285,11 +300,33 @@ def score_item(item, context, role, now, window_days=7):
             re.I,
         )
     )
+    critical_candidate = (
+        direct
+        and not analyst
+        and bool(
+            re.search(
+                r"дефолт|банкрот|отозван\w*\s+лиценз|приостанов\w*\s+(?:производ|работ)|останов\w*\s+(?:производ|работ)|утечк\w*\s+данн|кибератак|наруш\w*\s+норматив|не\s+исполнил\w*\s+обязательств",
+                title,
+                re.I,
+            )
+        )
+    )
     own_domain = domain_of(context.get("website", ""))
     host = domain_of(item["url"])
     primary = within_domain(host, PRIMARY_DOMAINS) or bool(own_domain and within_domain(host, {own_domain}))
     macro = bool(set(topics) & {"rates", "inflation", "fx"})
-    sector = context["bank"] and bool(set(topics) & {"rates", "funding", "capital", "credit", "operations"})
+    bank_sector = bool(
+        re.search(
+            r"\bбанк\w*|банковск|кредитн\w*\s+организац|плат[её]жн\w*\s+систем|банкомат|\bЦБ\b|\bРЕПО\b|денежн\w*\s+рынок|цифров\w*\s+рубл",
+            title + " " + item.get("excerpt", "")[:300],
+            re.I,
+        )
+    )
+    sector = (
+        context["bank"]
+        and bank_sector
+        and bool(set(topics) & {"rates", "funding", "capital", "credit", "operations"})
+    )
     industry_words = {w[:6] for w in re.findall(r"[а-яёa-z]{5,}", context["industry"].casefold())} - {
         "деятел",
         "прочие",
@@ -297,11 +334,7 @@ def score_item(item, context, role, now, window_days=7):
     }
     industry_match = bool(industry_words & {w[:6] for w in re.findall(r"[а-яёa-z]{5,}", title.casefold())})
     priority_match = sorted(set(topics) & set(context.get("priority_topics", [])))
-    competitor_match = [
-        c
-        for c in context.get("competitors", [])
-        if len(normalize_name(c)) >= 3 and normalize_name(c) in normalize_name(title)
-    ]
+    competitor_match = [c for c in context.get("competitors", []) if entity_matches(c, title)]
     if (
         not direct
         and not sector
@@ -385,7 +418,9 @@ def score_item(item, context, role, now, window_days=7):
     score = max(0, min(100, sum(components.values())))
     if score < 25:
         return None, "low_role_priority"
-    priority = "check_now" if score >= 70 else "monitor" if score >= 48 else "background"
+    priority = (
+        "check_now" if critical_candidate or score >= 70 else "monitor" if score >= 48 else "background"
+    )
     critical = bool(set(topics) & {"credit", "operations", "capital"}) and direct and not analyst
     if critical and priority == "background":
         priority = "monitor"
@@ -394,6 +429,8 @@ def score_item(item, context, role, now, window_days=7):
         "primary_topic": main_topic,
         "matched_priorities": matched_priorities,
         "score": score,
+        "ranking_score": sum(components.values()),
+        "critical_candidate": critical_candidate,
         "score_components": components,
         "reasons": reasons,
         "topics": topics,
@@ -469,7 +506,10 @@ def rank_news(items, context, role, now, window_days=7):
             ranked.append(scored)
         else:
             excluded[reason] = excluded.get(reason, 0) + 1
-    ranked.sort(key=lambda x: (x["score"], x["published_at"], x["news_id"]), reverse=True)
+    ranked.sort(
+        key=lambda x: (x["critical_candidate"], x["ranking_score"], x["published_at"], x["news_id"]),
+        reverse=True,
+    )
     unique = []
     for item in ranked:
         previous = next((p for p in unique if duplicate_story(p, item)), None)

@@ -35,11 +35,15 @@ def signing_key(settings, password):
     return hmac.new(secret.encode(), b"alfa-signing:" + password.encode(), hashlib.sha256).hexdigest()
 
 
-def issue_session(password, principal=None):
+def issue_session(password, principal=None, session_id=None):
     nonce = (
         secrets.token_hex(16)
         if principal is None
-        else base64.urlsafe_b64encode(json.dumps(principal.public(), ensure_ascii=False).encode())
+        else base64.urlsafe_b64encode(
+            json.dumps(
+                {**principal.public(), **({"_sid": session_id} if session_id else {})}, ensure_ascii=False
+            ).encode()
+        )
         .decode()
         .rstrip("=")
     )
@@ -69,9 +73,22 @@ def session_principal(cookie, password):
     try:
         payload = cookie.split(".")[1]
         data = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        data.pop("_sid", None)
         principal = Principal(**data)
         if not principal.user_id.startswith("user_") or not principal.company_id.startswith("company_"):
             return None
         return principal
     except (ValueError, TypeError, KeyError):
+        return None
+
+
+def session_nonce(cookie, password):
+    if not valid_session(cookie, password):
+        return None
+    try:
+        payload = cookie.split(".")[1]
+        data = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        sid = data.get("_sid")
+        return sid if isinstance(sid, str) and 32 <= len(sid) <= 100 else None
+    except (ValueError, TypeError, KeyError, AttributeError):
         return None

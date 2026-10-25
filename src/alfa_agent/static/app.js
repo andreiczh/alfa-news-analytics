@@ -308,6 +308,10 @@ const ERRORS = {
     "Достигнут лимит шагов исследования. Сузьте вопрос и повторите.",
   rate_limited: "API временно ограничил частоту запросов. Повторите позже.",
   provider_unavailable: "Организаторский API временно недоступен.",
+  paid_queue_user_limit: "У вас уже есть три незавершённые задачи. Дождитесь результата или отмените лишнюю.",
+  paid_queue_global_limit: "Очередь обработки заполнена. Попробуйте позднее.",
+  pilot_storage_quota: "Хранилище пилота заполнено. Обратитесь к владельцу платформы.",
+  review_sources_and_assumptions_first: "Сначала подтвердите проверку источников и допущений.",
 };
 function message(error) {
   const code = typeof error === "string" ? error : error?.message;
@@ -605,6 +609,11 @@ function composer(compact = false) {
   news.value = S.draft.news;
   news.addEventListener("input", () => (S.draft.news = news.value));
   advanced.append(field("Текст новости", news));
+  const planning = node("select"); planning.id = "research-horizon";
+  for (const days of [7,30,90,365]) { const option=node("option","",days === 365 ? "Год" : days+" дней"); option.value=String(days); planning.append(option); }
+  planning.value=String(S.draft.planningDays||30);
+  planning.addEventListener("change",()=>{S.draft.planningDays=Number(planning.value);});
+  form.append(field("Горизонт планирования",planning));
   form.append(detail("Добавить новость или первоисточники", advanced));
   const checkbox = node("input");
   checkbox.type = "checkbox";
@@ -1132,6 +1141,7 @@ async function startResearch(question, extra = {}) {
       role: S.role,
       question,
       job_title: S.me?.job_title || ROLES[S.role],
+      planning_days: S.draft.planningDays || 30,
       public_search: S.draft.public,
       bank_document_id: S.draft.bankDocumentId || null,
       ...extra,
@@ -1756,6 +1766,8 @@ function exportReport(j) {
     j.company_name + " · " + j.job_title + " · " + date(r.as_of),
     "",
     "Статус: " + statusText(j.status),
+    j.quality_gate?.status === "reviewed_by_user" ? "Просмотрено пользователем. Независимая финансовая экспертиза не подтверждена." : "ЧЕРНОВИК. Перед использованием выводов требуется проверка источников и допущений.",
+    !j.quality_gate?.current_rules ? "Исторический результат: текущие правила проверки не применялись. Требуется новое исследование." : "",
     "",
     r.summary,
     "",

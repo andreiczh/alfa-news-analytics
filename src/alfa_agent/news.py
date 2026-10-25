@@ -217,7 +217,7 @@ class NewsService:
     def _cache_set(self, key, value, seconds):
         with self.store.connection() as db:
             db.execute(
-                "INSERT OR REPLACE INTO news_public_cache VALUES(?,?,?)",
+                "INSERT INTO news_public_cache VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,expires_at=excluded.expires_at",
                 (key, json.dumps(value, ensure_ascii=False), time.time() + seconds),
             )
             db.execute("DELETE FROM news_public_cache WHERE expires_at<?", (time.time(),))

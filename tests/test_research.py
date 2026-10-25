@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -123,7 +124,16 @@ class ResearchGateway:
                 {
                     "title": "Проверить условия и применимость события к компании",
                     "main_conclusion": point,
-                    "situation": [point],
+                    "situation": [
+                        {
+                            **point,
+                            "kind": "source_forecast"
+                            if re.search(r"прогноз|ожида|предполага|вероятност", anchor["quote"], re.I)
+                            else "source_fact",
+                            "text": anchor["quote"],
+                            "anchor_ids": [anchor["anchor_id"]],
+                        }
+                    ],
                     "drivers": [point],
                     "company_impact": [point],
                     "risks": [point],
@@ -244,8 +254,18 @@ def test_research_requires_same_user_and_company_for_follow_up(service):
         current_principal.reset(token)
 
 
+def test_partial_mode_does_not_block_a_grounded_qualitative_answer_on_missing_balance(service):
+    job = service.research.create(request_for(service), "partial-on-unknown")
+    asyncio.run(ResearchEngine(service.research, ResearchGateway(ask=True)).once())
+    result = service.research.get(job["run_id"])
+    assert result["status"] == "PARTIAL" and result["verification"]["passed"]
+    assert any(item["event"] == "partial_instead_of_missing_data_question" for item in result["trace"])
+
+
 def test_ask_user_resume_and_cancel_are_real_states(service):
-    job = service.research.create(request_for(service), "question")
+    job = service.research.create(
+        request_for(service).model_copy(update={"allow_partial": False}), "question"
+    )
     gateway = ResearchGateway(ask=True)
     engine = ResearchEngine(service.research, gateway)
     asyncio.run(engine.once())

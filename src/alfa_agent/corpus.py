@@ -4,6 +4,8 @@ from datetime import datetime
 import json
 import re
 import sqlite3
+import threading
+from functools import wraps
 
 from .domain import CompanyProfile, DocumentRef, Evidence, EventBrief, SourceClaim
 
@@ -12,10 +14,19 @@ class AccessDenied(Exception):
     pass
 
 
+def synchronized(method):
+    @wraps(method)
+    def call(self, *args, **kwargs):
+        with self.lock:
+            return method(self, *args, **kwargs)
+    return call
+
+
 class Corpus:
     """A small real-source corpus. Private documents are filtered before use."""
 
     def __init__(self, path):
+        self.lock = threading.RLock()
         raw = json.loads(path.read_text())
         self.source_bundle = raw
         self.workspace = None
@@ -49,6 +60,7 @@ class Corpus:
             )
         self.index.commit()
 
+    @synchronized
     def register_snapshot(self, snapshot):
         profile = CompanyProfile.model_validate(snapshot["profile"])
         accepted = {d["document_id"] for d in snapshot["documents"]}
@@ -91,6 +103,7 @@ class Corpus:
             self.evidence[item.evidence_id] = item
         self.index.commit()
 
+    @synchronized
     def load_run_snapshot(self, request):
         snapshot_id = request.get("profile_snapshot_id")
         if snapshot_id:
@@ -99,9 +112,11 @@ class Corpus:
             snapshot = self.workspace.load_snapshot(snapshot_id, request["company_id"])
             self.register_snapshot(snapshot)
 
+    @synchronized
     def close(self):
         self.index.close()
 
+    @synchronized
     def authorize(self, document_id, company_id, as_of):
         document = self.documents.get(document_id)
         if (
@@ -112,6 +127,7 @@ class Corpus:
             raise AccessDenied("evidence_not_accessible")
         return document
 
+    @synchronized
     def read_evidence(self, ids, company_id, as_of):
         result = []
         for evidence_id in ids:
@@ -122,6 +138,7 @@ class Corpus:
             result.append(evidence)
         return result
 
+    @synchronized
     def search(self, query, kind, company_id, as_of, limit=5):
         words = re.findall(r"[a-zа-яё0-9]{3,}", query.lower())[:20]
         if not words:
@@ -144,6 +161,7 @@ class Corpus:
                 break
         return found
 
+    @synchronized
     def profile(self, company_id):
         if company_id not in self.profiles:
             raise AccessDenied("company_not_accessible")

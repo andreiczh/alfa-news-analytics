@@ -41,7 +41,7 @@ def role_for(title):
     return "other"
 
 
-def create_principal(workspace, full_name, company_name, job_title):
+def profile_values(full_name, company_name, job_title):
     values = [" ".join(str(x).split()) for x in (full_name, company_name, job_title)]
     name, company, title = values
     if not 3 <= len(name) <= 100 or len(name.split()) < 2:
@@ -52,6 +52,11 @@ def create_principal(workspace, full_name, company_name, job_title):
         raise ValueError("Укажите вашу должность.")
     if any(re.search(r"[\x00-\x1f]", x) for x in values):
         raise ValueError("Уберите служебные символы из полей.")
+    return name, company, title
+
+
+def create_principal(workspace, full_name, company_name, job_title):
+    name, company, title = profile_values(full_name, company_name, job_title)
     uid = new_id("user")
     cid = workspace.create_company(company, owner_id=uid)["company_id"]
     principal = Principal(uid, cid, name, company, title, role_for(title))

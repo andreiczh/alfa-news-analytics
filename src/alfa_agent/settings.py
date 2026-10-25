@@ -56,13 +56,15 @@ class Settings:
         )
     )
     model: str = os.environ.get("ALFA_LLM_MODEL", "qwen/qwen3.6-35b-a3b")
+    database_url: str = field(default_factory=lambda: os.environ.get("ALFA_DATABASE_URL", ""), repr=False)
+    database_schema: str = field(default_factory=lambda: os.environ.get("ALFA_DATABASE_SCHEMA", "public"))
     research_model: str = os.environ.get("ALFA_RESEARCH_MODEL", "z-ai/glm-5.3-flash")
     disable_reasoning: bool = True
     max_calls: int = 12
     max_tools: int = 8
     max_replans: int = 2
     active_seconds: int = 300
-    timeout_seconds: int = 60
+    timeout_seconds: int = 90
     lease_seconds: int = 120
 
     @property

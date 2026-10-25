@@ -11,6 +11,7 @@ const CONTEXT_CATEGORIES = {
 const POINT_NAMES = {
   source_fact: "Сообщение источника",
   source_forecast: "Прогноз источника",
+  source_assessment: "Оценка источника",
   interpretation: "Интерпретация",
   hypothesis: "Гипотеза",
 };
@@ -132,13 +133,66 @@ function profileSettings() {
     detail(
       "Сессия и выход",
       p(
-        "Сессия действует 12 часов. Новый вход создаст отдельное пространство. Сначала скачайте важные результаты.",
+        S.me.auth_mode === "accounts" ? "Сессия действует 12 часов. Повторный вход с вашим логином возвращает прежнее пространство. Выход отзывает текущую сессию." : "Демонстрационная сессия действует 12 часов. Сначала скачайте важные результаты.",
         "fine-print",
       ),
       logout,
     ),
   );
+  if (S.me.auth_mode === "accounts") content.append(
+    button("Доступ команды и приглашения", teamSettings, "text-button"),
+    button("Сменить личный пароль", passwordSettings, "text-button"),
+  );
   modal("Компания и роль", content);
+}
+
+function passwordSettings() {
+  const form = node("form", "stack"), old = node("input"), next = node("input");
+  old.type = next.type = "password";
+  old.autocomplete = "current-password"; next.autocomplete = "new-password";
+  old.required = next.required = true; old.maxLength = next.maxLength = 256; next.minLength = 12;
+  const submit = node("button", "button primary", "Сменить пароль и выйти"); submit.type = "submit";
+  add(form, field("Текущий пароль", old), field("Новый пароль, не менее 12 символов", next),
+      p("Все открытые сессии будут закрыты. Данные рабочего пространства сохранятся.", "fine-print"), submit);
+  form.addEventListener("submit", async e => {
+    e.preventDefault(); submit.disabled = true;
+    try { await api("/api/account/password", {method: "PUT", body: JSON.stringify({current_password: old.value, new_password: next.value})}); location.assign("/auth/login"); }
+    catch(error) { report(error); submit.disabled = false; }
+  });
+  modal("Личный пароль", form);
+}
+
+async function teamSettings() {
+  const content = node("div", "stack"), cid = S.company.company_id;
+  content.append(p("Должность определяет аналитику. Доступ к документам выдаётся отдельным приглашением.", "fine-print"));
+  try {
+    const data = await api("/api/companies/"+cid+"/team");
+    for (const m of data.members) {
+      const line = node("div", "row");
+      line.append(p(m.full_name+" · "+({owner:"Владелец",admin:"Администратор",member:"Участник",viewer:"Просмотр"}[m.permission])+(m.active ? "" : " · доступ закрыт")));
+      if (m.active && !["owner","admin"].includes(m.permission)) line.append(button("Закрыть доступ", async () => {
+        await api("/api/companies/"+cid+"/team/"+m.user_id,{method:"DELETE"}); await teamSettings();
+      },"button small"));
+      content.append(line);
+    }
+    const permission = node("select");
+    for (const [value,label] of [["member","Работа с контекстом и документами"],["viewer","Просмотр без редактирования компании"]]) {
+      const option = node("option","",label); option.value=value; permission.append(option);
+    }
+    content.append(field("Права приглашённого",permission),button("Создать одноразовый код",async()=>{
+      const invite=await api("/api/companies/"+cid+"/team/invites",{method:"POST",body:JSON.stringify({permission:permission.value})});
+      const code=node("textarea");code.readOnly=true;code.value=invite.code;code.rows=2;code.setAttribute("aria-label","Одноразовый код приглашения");
+      modal("Приглашение на 48 часов",add(node("div","stack"),p("Передайте код коллеге самостоятельно. Он войдёт в свой аккаунт и примет приглашение. Код можно использовать один раз."),code));code.select();
+    },"button"));
+  } catch(error) { if (!String(error.message).includes("403") && !String(error.message).includes("access_denied")) content.append(p("Список команды доступен владельцу пространства.")); }
+  const form=node("form","stack"),code=node("input"),join=node("button","button primary","Принять приглашение");
+  code.minLength=32;code.maxLength=100;code.required=true;code.autocomplete="off";join.type="submit";
+  add(form,field("Код приглашения от коллеги",code),join);
+  form.addEventListener("submit",async e=>{e.preventDefault();join.disabled=true;try{
+    const result=await api("/api/account/join",{method:"POST",body:JSON.stringify({code:code.value.trim()})});
+    S.companies=await api("/api/companies");await savePersonalization(result.company_id,S.role);toast("Доступ к пространству открыт.");
+  }catch(error){report(error);join.disabled=false;}});
+  content.append(detail("Присоединиться к пространству коллеги",form));modal("Доступ команды",content);
 }
 
 function renderDecisionOverview() {
@@ -208,6 +262,7 @@ function renderDecisionOverview() {
     const outlook = add(
       node("div", "overview-outlook"),
       node("h3", "", "Что может измениться"),
+      badge("Черновик аналитики: проверьте источники и допущения"),
       p(
         "Из исследования «" + memo.title + "» · " + date(memo.as_of),
         "caption",
@@ -812,16 +867,41 @@ function narrativePoint(point, value, job) {
   return add(
     node("div", "narrative-point"),
     badge(POINT_NAMES[point.kind] || "Условная оценка"),
+    ["source_fact","source_forecast","source_assessment"].includes(point.kind) ? p("Дата источника: "+date(point.source_published_at),"caption") : null,
     p(point.text),
     point.condition ? p("Условие: " + point.condition, "condition") : null,
     detail("Основания", ...narrativeEvidence(value, point.anchor_ids, job)),
   );
 }
 
+function reviewResearch(job) {
+  const form=node("form","stack"),sources=node("input"),assumptions=node("input"),comment=node("textarea"),verdict=node("select");
+  sources.type=assumptions.type="checkbox";comment.minLength=20;comment.maxLength=1000;comment.required=true;comment.rows=3;
+  for (const [value,label] of [["accepted","Проверено мной, можно использовать с ограничениями"],["rejected","Отклонить: есть ошибки или недостаточно оснований"]]) {const option=node("option","",label);option.value=value;verdict.append(option);}
+  const submit=node("button","button primary","Сохранить решение");submit.type="submit";
+  add(form,p("Отметка относится к вашему просмотру конкретной версии записки. Она не превращает условный сценарий в установленный факт.","fine-print"),
+      add(node("label","check-row"),sources,node("span","","Я сверил даты, числа и источники")),
+      add(node("label","check-row"),assumptions,node("span","","Я проверил применимость к компании и допущения")),
+      field("Решение",verdict),field("Что проверено или что нужно исправить",comment),submit);
+  form.addEventListener("submit",async e=>{e.preventDefault();submit.disabled=true;try{
+    await api("/api/research/"+job.run_id+"/review",{method:"POST",body:JSON.stringify({verdict:verdict.value,comment:comment.value,sources_checked:sources.checked,assumptions_checked:assumptions.checked})});
+    S.job=await api("/api/research/"+job.run_id);closeModal();render();
+  }catch(error){report(error);submit.disabled=false;}});
+  modal("Проверка аналитической записки",form);
+}
+
 function renderNarrative(main, job) {
   const value = job.result.narrative;
   if (!value) return;
   const sections = node("div", "analytical-memo");
+  const gate = job.quality_gate || {}, notice = card("memo-section");
+  const reviewed = gate.status === "reviewed_by_user";
+  notice.append(badge(reviewed ? "Просмотрено пользователем" : gate.status === "rejected_by_user" ? "Отклонено пользователем" : "Черновик: требуется проверка"),
+    p("Автоматическая проверка не заменяет финансовую экспертизу. Чистый эффект на компанию не рассчитан без её финансовой модели.","fine-print"));
+  if (!gate.current_rules) notice.append(p("Отчёт создан до текущих правил проверки. Для использования выводов запустите исследование заново.","fine-print"));
+  else if (S.me.auth_mode === "accounts") notice.append(button("Проверить и отметить результат",()=>reviewResearch(job),"button small"));
+  if (job.user_review) notice.append(p(job.user_review.comment,"fine-print"));
+  sections.append(notice);
   const appendSection = (title, points, fallback) => {
     const section = card("memo-section");
     section.append(node("h2", "", title));

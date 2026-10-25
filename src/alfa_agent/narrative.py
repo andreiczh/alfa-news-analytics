@@ -14,7 +14,7 @@ class Strict(BaseModel):
 
 
 class NarrativePoint(Strict):
-    kind: Literal["source_fact", "source_forecast", "interpretation", "hypothesis"]
+    kind: Literal["source_fact", "source_forecast", "source_assessment", "interpretation", "hypothesis"]
     text: str = Field(min_length=15, max_length=700)
     anchor_ids: list[str] = Field(min_length=1, max_length=3)
     condition: str = Field(min_length=5, max_length=400)
@@ -51,7 +51,7 @@ class DecisionNarrative(Strict):
     context_keys: list[str] = Field(default_factory=list, max_length=8)
 
 
-def decision_schema(ledger, confirmed_context):
+def decision_schema(ledger, confirmed_context, policy=None):
     schema = DecisionNarrative.model_json_schema()
     allowed = [a["anchor_id"] for a in ledger]
     for name in ("NarrativePoint", "MainConclusion", "ForecastScenario"):
@@ -66,6 +66,23 @@ def decision_schema(ledger, confirmed_context):
     )
     schema["properties"]["context_keys"]["minItems"] = 1 if available else 0
     schema["properties"]["context_keys"]["maxItems"] = min(8, len(available))
+    if policy:
+        schema["$defs"]["ForecastScenario"]["properties"]["horizon"]["enum"] = [policy["horizon"]]
+        import copy
+
+        source_message = copy.deepcopy(schema["$defs"]["NarrativePoint"])
+        source_message["properties"]["kind"]["enum"] = ["source_fact", "source_forecast", "source_assessment"]
+        source_message["properties"]["anchor_ids"]["maxItems"] = 1
+        source_message["properties"]["text"]["enum"] = list(
+            dict.fromkeys(
+                a["quote"] for a in ledger if a.get("excerpt_complete", True) and 15 <= len(a["quote"]) <= 700
+            )
+        )
+        schema["$defs"]["SourceMessage"] = source_message
+        schema["properties"]["situation"]["items"] = {"$ref": "#/$defs/SourceMessage"}
+        # These sections contain our reasoning. Enforce this in the provider schema
+        # as well as in the server policy; a prompt alone is not a type boundary.
+        schema["$defs"]["NarrativePoint"]["properties"]["kind"]["enum"] = ["interpretation", "hypothesis"]
     return schema
 
 
@@ -113,6 +130,24 @@ def revision_details(value, ledger):
                 "unsupported_numbers": sorted(numbers(point.text + " " + point.condition) - numbers(quotes)),
                 "unsupported_measures": sorted(
                     measures(point.text + " " + point.condition) - measures(quotes)
+                ),
+                "required_kind": (
+                    "source_fact/source_forecast/source_assessment"
+                    if path.startswith("situation")
+                    else "interpretation/hypothesis"
+                ),
+                "exact_source_quotes": (
+                    [
+                        {
+                            "anchor_id": aid,
+                            "text": anchors[aid]["quote"],
+                            "claim_type": anchors[aid].get("claim_type"),
+                        }
+                        for aid in point.anchor_ids
+                        if aid in anchors
+                    ]
+                    if path.startswith("situation")
+                    else []
                 ),
             }
         )
@@ -339,7 +374,17 @@ def measures(text):
     return result
 
 
-def validate_narrative(value, ledger, confirmed_context, bank_company=False, selected_news_id=None):
+def validate_narrative(
+    value,
+    ledger,
+    confirmed_context,
+    bank_company=False,
+    selected_news_id=None,
+    *,
+    as_of=None,
+    planning_days=30,
+    profile=None,
+):
     from .research import numbers as raw_numbers
 
     def numbers(text):
@@ -387,7 +432,7 @@ def validate_narrative(value, ledger, confirmed_context, bank_company=False, sel
             issues.append("unsupported_narrative_date:" + str(index))
         if not measures(point.text + " " + point.condition) <= measures(local):
             issues.append("unsupported_narrative_unit:" + str(index))
-        if point.kind not in {"source_fact", "source_forecast"} and probability_claim(
+        if point.kind not in {"source_fact", "source_forecast", "source_assessment"} and probability_claim(
             point.text + " " + point.condition
         ):
             issues.append("unjustified_narrative_probability")
@@ -448,7 +493,7 @@ def validate_narrative(value, ledger, confirmed_context, bank_company=False, sel
                 [
                     scenario.title,
                     scenario.outcome,
-                    scenario.horizon,
+                    *([] if as_of else [scenario.horizon]),
                     scenario.mechanism,
                     scenario.confidence_reason,
                     *scenario.assumptions,
@@ -472,16 +517,27 @@ def validate_narrative(value, ledger, confirmed_context, bank_company=False, sel
         r"экономи\w* (?:на |по )?процент\w* расход\w*", value.main_conclusion.text, re.I
     ):
         issues.append("bank_narrative_corporate_debt_substitution")
+    if as_of:
+        from .analysis_policy import policy_issues
+
+        issues.extend(
+            policy_issues(value, ledger, as_of=as_of, days=planning_days, bank=bank_company, profile=profile)
+        )
     return list(dict.fromkeys(issues))
 
 
 def bind_narrative(value, ledger, role, context_revision):
     used = {aid for point in narrative_points(value) for aid in point.anchor_ids}
     used.update(aid for scenario in value.scenarios for aid in scenario.anchor_ids)
-    return {
+    result = {
         **value.model_dump(mode="json"),
         "role": role,
         "context_revision": context_revision,
         "evidence": [a for a in ledger if a["anchor_id"] in used],
         "scope": "Автоматически проверенные основания и условные сценарии. Не независимая экспертиза источников.",
     }
+    anchors = {a["anchor_id"]: a for a in ledger}
+    for point in result["situation"]:
+        if point["anchor_ids"]:
+            point["source_published_at"] = anchors[point["anchor_ids"][0]].get("published_at")
+    return result

@@ -8,4 +8,9 @@ reports
 **/__pycache__
 tests
 .git
+.render
+**/*-wal
+**/*-shm
+render-access.txt
+*.jsonl.gz
 deploy/case-index

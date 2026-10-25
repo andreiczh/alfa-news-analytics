@@ -3,6 +3,8 @@
 .env.*
 .DS_Store
 .render/
+deploy/seed/*-wal
+deploy/seed/*-shm
 render-access.txt
 deploy/case-index/
 .venv/

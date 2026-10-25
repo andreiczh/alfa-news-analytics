@@ -80,7 +80,7 @@ class LiveGateway:
                 }
             )
         # This bound covers schema + instructions + data, not just source text.
-        if sum(len(m["content"]) for m in messages) > 60000:
+        if sum(len(m["content"]) for m in messages) > (90000 if stage == "research_narrative" else 60000):
             raise GatewayError("context_limit")
         if images:
             import base64

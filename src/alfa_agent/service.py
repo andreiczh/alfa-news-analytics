@@ -49,9 +49,9 @@ class Answer(BaseModel):
 
 
 class Service:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, seed_examples=True):
         self.settings = settings
-        self.store = Store(settings.db_path)
+        self.store = Store(settings.db_path, settings.database_url, settings.database_schema)
         self.corpus = Corpus(settings.bundle_path)
         self.workspace = Workspace(settings, self.store)
         self.corpus.workspace = self.workspace
@@ -67,6 +67,32 @@ class Service:
 
         self.personalization = Personalization(self)
         self.context_dialogue = ContextService(self)
+        from .accounts import Accounts
+
+        self.accounts = Accounts(self)
+        from .operations import Operations
+
+        self.operations = Operations(self.store)
+        self.store.admission = self.check_paid_admission
+        from .bootstrap import seed_postgres_examples
+
+        if seed_examples:
+            seed_postgres_examples(self)
+
+    def check_paid_admission(self, db, tenant):
+        """Called only inside the short shared admission transaction."""
+        active = "('QUEUED','RUNNING','WAITING_INPUT','DEFERRED_BUDGET')"
+        total, own = 0, 0
+        for table in ("runs", "research_jobs", "context_turns"):
+            total += db.execute("SELECT COUNT(*) FROM " + table + " WHERE status IN " + active).fetchone()[0]
+            own += db.execute(
+                "SELECT COUNT(*) FROM " + table + " WHERE tenant=? AND status IN " + active, (tenant,)
+            ).fetchone()[0]
+        total += db.execute("SELECT COUNT(*) FROM document_jobs WHERE status IN " + active).fetchone()[0]
+        if total >= 20:
+            raise Conflict("paid_queue_global_limit")
+        if own >= 3:
+            raise Conflict("paid_queue_user_limit")
 
     def authorize_company(self, company_id):
         principal = current_principal.get()
@@ -119,7 +145,9 @@ class Service:
             (f.get("text_value", "") for f in snapshot["profile"]["features"] if f["name"] == "company_name"),
             "",
         )
-        if "банк" in name.casefold() or "bank" in name.casefold():
+        from .personalization import is_bank_company
+
+        if is_bank_company(name, snapshot):
             raise Conflict("bank_requires_custom_research")
         request["profile_snapshot_id"] = snapshot["snapshot_id"]
         request["as_of"] = utcnow().isoformat()
