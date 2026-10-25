@@ -1,0 +1,67 @@
+{
+  "version": "0.7.0",
+  "published_moscow_date": "2026-10-26",
+  "runtime_commit": "3ea9e0013065688528d363460fe19e4bea1d6860",
+  "deployment_id": "dep-dbf7bm7b9u1s73bsou8g",
+  "ci_url": "https://github.com/andreiczh/alfa-news-analytics/actions/runs/40235851008",
+  "ci_conclusion": "success",
+  "server_tests": {
+    "passed": 297,
+    "including_postgresql": 10
+  },
+  "browser": {
+    "local_checks": 22,
+    "cloud_feature_checks": 16,
+    "cloud_report_checks": 8,
+    "js_errors": 0,
+    "widths": [
+      1440,
+      1280,
+      768,
+      390,
+      320
+    ],
+    "cloud_configuration_checks": 2,
+    "configuration_check_method": "Positive and edited-question request inspected before network; no extra model calls"
+  },
+  "live_agent": {
+    "run_id": "research_a54cb7d4c1384303ba8e",
+    "parent_id": "research_56517690ed0340398edf",
+    "company": "Альфа-Банк",
+    "role": "cfo",
+    "company_context": "synthetic",
+    "gateway": "live_case_api",
+    "llm_calls": 3,
+    "tool_calls": 2,
+    "replans": 0,
+    "status": "PARTIAL",
+    "generation_mode": "rate_pause_policy_v1",
+    "planning_days": 90,
+    "planning_window": "Плановый период с 2026-10-26 по 2027-01-23 включительно",
+    "human_verified": false,
+    "automatic_checks_passed": true,
+    "parent_result_unchanged": true,
+    "seed_news_reused": true,
+    "runtime_commit": "fd92b6097a5e2ed3886db905fe2b9e0a2fdc3f39",
+    "note": "Final patch changes browser source carry only; the server and financial policy are unchanged"
+  },
+  "published_assets_sha256": {
+    "app.js": "80ba4d7bbe505bc416dc265a1d5ab36280f48fa650ec15c26de23031a816f5f6",
+    "decision-ui.js": "c95a9741af4f0a953460e0571ad0cfbb3c619b14a5488d2bc3f47c02bc617788",
+    "workspace-ui.js": "4f1726a2007625d3b6eff2162d0bfc8fbf5552623134680651156cb8d7fffcd1",
+    "style.css": "1d7cc0dad119851e204cbb2fbc05b554c326175b0eaea0efdc5fd3ca28518fdc"
+  },
+  "existing_demo_account_preserved": true,
+  "boundaries": [
+    "Quick search covers the available pool and processed sources; independent recall has not been measured",
+    "Company context in the live acceptance is synthetic; no actual bank balance data",
+    "No unlimited parallel agent branches or automatic complete global-market study",
+    "Physical Safari and mobile keyboard were not tested; Free PostgreSQL expires 2026-11-24"
+  ],
+  "post_redeploy_persistence": {
+    "saved_news_survives_redeploy": true,
+    "report_unchanged": true,
+    "paid_calls_not_replayed": true,
+    "original_upload_sha256_retained": true
+  }
+}
