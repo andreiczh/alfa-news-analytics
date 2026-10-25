@@ -133,6 +133,16 @@ def revision_details(value, ledger):
             "allowed_calendar_dates": sorted(calendar_dates(quotes)),
         }
     )
+    result.append(
+        {
+            "field": "context_keys",
+            "available_context_anchors": {
+                key: [a["anchor_id"] for a in ledger if a.get("context_key") == key]
+                for key in sorted({a.get("context_key") for a in ledger if a.get("context_key")})
+            },
+            "rule": "Каждый заявленный ключ должен иметь свою опору в anchor_ids пунктов или сценариев. Неиспользованный ключ не перечислять.",
+        }
+    )
     return result
 
 
@@ -337,12 +347,19 @@ def validate_narrative(value, ledger, confirmed_context, bank_company=False):
     if fields and not value.context_keys:
         issues.append("confirmed_context_not_used")
     used_ids = {aid for point in narrative_points(value) for aid in point.anchor_ids}
-    if value.context_keys and not any(
-        "_context_" + key + "_" in anchors.get(aid, {}).get("source_id", "")
+    used_ids.update(aid for scenario in value.scenarios for aid in scenario.anchor_ids)
+    ungrounded_context_keys = [
+        key
         for key in value.context_keys
-        for aid in used_ids
-    ):
+        if not any(
+            anchors.get(aid, {}).get("context_key") == key
+            or "_context_" + key + "_" in anchors.get(aid, {}).get("source_id", "")
+            for aid in used_ids
+        )
+    ]
+    if ungrounded_context_keys:
         issues.append("confirmed_context_has_no_grounding")
+        issues.extend("ungrounded_context_key:" + key for key in ungrounded_context_keys)
     for index, point in enumerate(narrative_points(value)):
         if any(aid not in anchors for aid in point.anchor_ids):
             issues.append("unknown_narrative_anchor")

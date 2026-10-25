@@ -516,3 +516,35 @@ def test_calendar_normalization_does_not_turn_percentage_into_calendar_day():
     assert calendar_dates("Решение 23.10%") == set()
     assert ("23.1", "percent") in measures("Решение 23.10%")
     assert "23.10" in numeric_text("Показатель 23.10 процента")
+
+
+def test_every_declared_context_key_needs_its_own_cited_anchor():
+    value = narrative()
+    value.context_keys = ["goals", "priorities"]
+    value.company_impact[0].anchor_ids = ["a2"]
+    ledger = [
+        {
+            "anchor_id": "a1",
+            "source_id": "news",
+            "kind": "public_page",
+            "quote": "Внешнее событие требует проверки.",
+        },
+        {
+            "anchor_id": "a2",
+            "source_id": "c_context_goals_0",
+            "context_key": "goals",
+            "kind": "company_evidence",
+            "quote": "Рост активности малого бизнеса.",
+        },
+        {
+            "anchor_id": "a3",
+            "source_id": "c_context_priorities_0",
+            "context_key": "priorities",
+            "kind": "company_evidence",
+            "quote": "Стоимость фондирования.",
+        },
+    ]
+    context = {"fields": {"goals": {}, "priorities": {}}}
+    assert "ungrounded_context_key:priorities" in validate_narrative(value, ledger, context)
+    value.recommendations[0].anchor_ids = ["a3"]
+    assert validate_narrative(value, ledger, context) == []
