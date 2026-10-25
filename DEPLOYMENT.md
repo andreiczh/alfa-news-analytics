@@ -1,4 +1,8 @@
-# Render · Пульс бизнеса 0.6.2
+# Render · Пульс бизнеса 0.6.3
+
+[Демо](https://alfa-business-pulse.onrender.com/auth/login). Runtime `3e8a22bb20831ea9791681cf3d98c25a8c2f7410`, deployment `dep-dbf3gc8473hc73bnevlg`, LIVE 2026-10-25T17:12:54.357448Z. Версия 0.6.3 исправляет экраны входа/регистрации и добавляет безопасное одноразовое операторское создание тестового аккаунта. [CI/Docker/Compose](https://github.com/andreiczh/alfa-news-analytics/actions/runs/40215037075), [проверки](validation-login-063.json), [критическое ревью](docs/LOGIN_0_6_3.md). Обычная команда запуска восстановлена; временная конфигурация создания аккаунта удалена, прежние секреты сохранены. Аккаунт находится в PostgreSQL; данные входа не публикуются в репозитории.
+
+## Предыдущий выпуск аналитики 0.6.2
 
 [Демо](https://alfa-business-pulse.onrender.com). Runtime `15ba5ff784785ffc8406c4f6418f7f80849dc51b`, deployment `dep-dbf1oarncjis73dobejg`, LIVE 2026-10-25T15:13:04.752995Z. [CI/Docker/Compose](https://github.com/andreiczh/alfa-news-analytics/actions/runs/40205587212), [протокол](validation-report-v6.json), [качество и ограничения](docs/HARDENING_0_6.md).
 

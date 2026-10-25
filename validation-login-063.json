@@ -1,0 +1,56 @@
+{
+  "version": "0.6.3",
+  "date": "2026-10-25",
+  "demo_url": "https://alfa-business-pulse.onrender.com",
+  "runtime_commit": "3e8a22bb20831ea9791681cf3d98c25a8c2f7410",
+  "deployment_id": "dep-dbf3gc8473hc73bnevlg",
+  "ci": "https://github.com/andreiczh/alfa-news-analytics/actions/runs/40215037075",
+  "tests": {
+    "ordinary_passed": 278,
+    "postgres_passed": 9,
+    "local_browser_checks": 15,
+    "cloud_browser_checks": 16,
+    "js_errors": 0
+  },
+  "viewports": [
+    [
+      1440,
+      900
+    ],
+    [
+      1280,
+      720
+    ],
+    [
+      768,
+      1024
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      320,
+      568
+    ]
+  ],
+  "account": {
+    "provisioned": true,
+    "password_in_repository": false,
+    "company": "Альфа-Банк",
+    "role": "cfo",
+    "normal_password_policy_minimum": 12,
+    "repeat_login_same_workspace": true,
+    "logout_revokes_session": true,
+    "other_same_employer_workspace_denied": true
+  },
+  "assets_sha256": {
+    "account-login.html": "d16f6cd2693d76fbcdc8589735b9be269d214ec7b2421cdbd7ba9ef5b61d7802",
+    "account-register.html": "ba638f62e52e87de8b48f25924b14d455d43e61fbbd7d70abe8d2de7c837510d",
+    "login.css": "d713bf3a7d757209d30d63596f8540e15fc8f1f4332773ad470366b37ac069fa"
+  },
+  "limits": [
+    "Browser viewport emulation; physical mobile keyboard and Safari not checked",
+    "This change does not independently revalidate financial analysis"
+  ]
+}
