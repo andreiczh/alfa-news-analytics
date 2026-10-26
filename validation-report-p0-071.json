@@ -1,0 +1,158 @@
+{
+  "release": "0.7.1",
+  "date_moscow": "2026-10-26",
+  "status": "verified_demo",
+  "runtime_commit": "4e353943d8661aecc177aebda6a3f8a28ff2b9c7",
+  "deployment_id": "dep-dbfa092vcj2c73fc68t0",
+  "finished_at": "2026-10-26T00:36:15.330805Z",
+  "demo_url": "https://alfa-business-pulse.onrender.com",
+  "ci": {
+    "run_id": 40249730985,
+    "url": "https://github.com/andreiczh/alfa-news-analytics/actions/runs/40249730985",
+    "conclusion": "success",
+    "docker_and_compose": "passed"
+  },
+  "scope": [
+    "bank content relevance",
+    "explicit news lookback and planning horizon",
+    "company factor / conditional impact / role action",
+    "original or current company context"
+  ],
+  "server_tests": {
+    "standard_passed": 320,
+    "postgresql_tls_passed_separately": 11,
+    "total": 331,
+    "new_standard_p0_tests": 33,
+    "new_postgresql_p0_tests": 1,
+    "postgresql_fixture": "real local PostgreSQL, verify-full, isolated random schemas",
+    "ci_postgresql": "opt-in tests skipped without a DSN; actual run verified separately",
+    "warnings": [
+      "Starlette TestClient transport deprecation"
+    ]
+  },
+  "browser": {
+    "local": {
+      "passed": 22,
+      "errors": []
+    },
+    "cloud": {
+      "passed": 26,
+      "errors": []
+    },
+    "widths": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "request_only_research_checks": {
+      "local": 3,
+      "cloud": 1,
+      "model_calls": 0
+    },
+    "late_period_response_cannot_overwrite_new_selection": true
+  },
+  "live_api": {
+    "run_id": "research_9837fd4c8aa8460cad76",
+    "status": "PARTIAL",
+    "error_code": null,
+    "llm_calls": 3,
+    "tool_calls": 2,
+    "replans": 0,
+    "context_mode": "current",
+    "context_version": {
+      "profile_version": 4,
+      "context_revision": 2
+    },
+    "profile_snapshot_id": "snapshot_0e227ce1b15043629c2a",
+    "planning_days": 90,
+    "news_days": 7,
+    "parent_id": "research_a54cb7d4c1384303ba8e",
+    "quality_gate": {
+      "current_rules": true,
+      "status": "draft_requires_review",
+      "independent_expert_verified": false,
+      "scope": "Автоматическая проверка и просмотр пользователем различаются; финансовая экспертиза не подтверждена."
+    },
+    "runtime_commit_at_generation": "d79a317da5cabd8a5b3144e7287d352259737fe8",
+    "final_browser_reused_completed_run_without_new_paid_calls": true,
+    "backend_unchanged_between_live_run_and_final_runtime": true,
+    "only_subsequent_code_changes": [
+      "src/alfa_agent/static/app.js",
+      "src/alfa_agent/static/workspace-ui.js"
+    ],
+    "company": "Альфа-Банк",
+    "role": "CFO",
+    "company_context": "explicitly synthetic QA data; employer identity not verified",
+    "new_internal_evidence_observed": true,
+    "parent_result_and_sources_unchanged": true,
+    "human_financial_expert_verified": false,
+    "planning_policy": {
+      "version": "1.0",
+      "as_of": "2026-10-26",
+      "start": "2026-10-26",
+      "end": "2027-01-23",
+      "days": 90,
+      "horizon": "Плановый период с 2026-10-26 по 2027-01-23 включительно",
+      "basis": "user_selected_planning_window_not_a_forecast",
+      "rules": [
+        "horizon каждого сценария в точности равен horizon политики; календарь не помещать в title",
+        "В собственном тексте использовать абсолютные даты с опорами; относительные дни запрещены",
+        "Исторический прогноз автора остаётся историческим и не определяет текущий исход",
+        "Не обещать исход за пределами планового периода; указывать условия и сигналы пересмотра"
+      ]
+    }
+  },
+  "published_assets": {
+    "app.js": {
+      "sha256": "e8fe79f3dc52b512ae9f8d7fc353391ae6d4fce7bc6ee2ca8b761c2667fd819e",
+      "matches_local": true
+    },
+    "decision-ui.js": {
+      "sha256": "4703a39bd2402319d4c823fdb28e1fee9cd6b43818b2c592a74db6dd4e41eaf5",
+      "matches_local": true
+    },
+    "workspace-ui.js": {
+      "sha256": "b93378bf5ad598dc8374fe06ebe5e4f89ccf3445d4888fc16b286ef31d8045c1",
+      "matches_local": true
+    },
+    "style.css": {
+      "sha256": "4cf81ac4df233ed3d5adef02624acaae1cfbb4a203bef170d2cb4123f70b176a",
+      "matches_local": true
+    }
+  },
+  "storage": {
+    "backend": "postgresql",
+    "expires_at": "2026-11-24T09:04:16.966938Z",
+    "predeployment_backup_bytes": 2100515,
+    "predeployment_backup_sha256": "097b7784a2ad51cd998ce8e6f98b76eea7bcf29f74db1464e003318843b93f18",
+    "backup_is_private_and_not_committed": true,
+    "schema_changed": false,
+    "render_settings_and_api_key_changed": false,
+    "we2b_account_changed": false
+  },
+  "case_submission": {
+    "judge_account": "alfa-hack-2026",
+    "judge_permission_last_verified": "none",
+    "judge_invite_sent": false,
+    "exact_deadline_confirmed": false,
+    "independent_news_goldset_completed": false,
+    "full_bank_annotation_completed": false,
+    "bank_corpus_documents": 9,
+    "bank_corpus_pages": 64,
+    "structured_demo_bank_claims": 3,
+    "alpha_business_host_entry_mock_completed": false
+  },
+  "limits": [
+    "Lexical bank retrieval is not an independently evaluated semantic search.",
+    "News window covers available collected publications, not complete historical coverage.",
+    "Only supported common period phrases are parsed; calendar boundaries need explicit clarification.",
+    "One live scenario uses synthetic company inputs; general financial quality remains unproven.",
+    "Server and transport checks do not measure CFO usefulness or production SLA."
+  ],
+  "assessment": {
+    "p0_implementation_score_out_of_10": 8,
+    "technical_review_confidence_percent": 94,
+    "score_scope": "four P0 changes within the verified demo scope; not overall enterprise readiness"
+  }
+}
