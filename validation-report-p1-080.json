@@ -166,7 +166,7 @@
   "remaining": [
     "Independent human financial/annotation review",
     "Independent search/novel-event benchmark",
-    "Jury repository access and final contest commit",
+    "Final contest commit and independent evaluator launch",
     "Alfa-Business entry mock if required; no banking SSO",
     "Long-term hosting and backup plan after pilot expiry"
   ],
@@ -174,5 +174,12 @@
     "bank_annotations_sha256": "610b0ffc86322111534fe839732e779e201bcc6e9ddaec65b9bd4f47817002c9",
     "replay_events_sha256": "c8dd6daf87a66470ac8052459e4d8e412517f70a1c742f856f3f0fab378482a2",
     "note": "Quoted supplied bank PDFs and primary CBR excerpt fixtures; review is AI assisted, not independent gold."
+  },
+  "jury_access": {
+    "account": "alfa-hack-2026",
+    "permission": "read",
+    "checked_on": "2026-10-26",
+    "method": "GitHub collaborator permission API",
+    "new_invitation_sent": false
   }
 }
