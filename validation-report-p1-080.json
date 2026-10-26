@@ -1,0 +1,178 @@
+{
+  "scope": "P1 corporate debt sensitivity and bank-source context; controlled tests are not an independent financial/search benchmark",
+  "as_of": "2026-10-26",
+  "runtime_target": "d38f3236d078c4f6d3fc61c460365de8c0c67489",
+  "version": "0.8.0",
+  "tests": {
+    "ordinary_passed": 361,
+    "postgres_tls_passed": 12,
+    "ordinary_postgres_opt_in_skipped": 12,
+    "funding_tests": 41,
+    "controlled_matrix_cases": 24,
+    "local_browser_passed": 51,
+    "local_browser_js_errors": []
+  },
+  "ci": {
+    "id": 40356513363,
+    "conclusion": "success",
+    "url": "https://github.com/andreiczh/alfa-news-analytics/actions/runs/40356513363",
+    "docker_build_container_and_compose": "passed"
+  },
+  "bank_annotations": {
+    "new": 24,
+    "existing_demo": 3,
+    "pdfs_used": 4,
+    "pages_inspected": 5,
+    "human_verified": false
+  },
+  "local_live": {
+    "runs": {
+      "floating_cfo": {
+        "run_id": "research_7ad5e51408614b40b816",
+        "company_id": "company_fa4cb894c2ae444790c7",
+        "news_url": "https://www.cbr.ru/press/event/?id=32929",
+        "status": "PARTIAL",
+        "error": null,
+        "llm_calls": 3,
+        "tools": 2,
+        "replans": 0
+      },
+      "floating_treasurer": {
+        "run_id": "research_2eba1bb81114411fa1e0",
+        "company_id": "company_1ce5a4842f3245bd9f12",
+        "news_url": "https://www.cbr.ru/press/PR?file=639275076044949684BANK_SECTOR.htm",
+        "status": "PARTIAL",
+        "error": null,
+        "llm_calls": 3,
+        "tools": 2,
+        "replans": 0
+      },
+      "fixed_cfo": {
+        "run_id": "research_2def02c68e984a97aa54",
+        "company_id": "company_f56bc41d264a41a78272",
+        "news_url": "https://www.cbr.ru/press/PR?file=639275076044949684BANK_SECTOR.htm",
+        "status": "PARTIAL",
+        "error": null,
+        "llm_calls": 3,
+        "tools": 2,
+        "replans": 0
+      },
+      "fixed_treasurer": {
+        "run_id": "research_2bbd8bf56f2144bd8c8f",
+        "company_id": "company_11867961fc66457f93ec",
+        "news_url": "https://www.cbr.ru/press/PR/?file=24072026_133000key.htm",
+        "status": "PARTIAL",
+        "error": null,
+        "llm_calls": 3,
+        "tools": 2,
+        "replans": 0
+      },
+      "unknown_cfo": {
+        "run_id": "research_82c3a643692c44ea88ff",
+        "company_id": "company_f33e6b078f8b4d778738",
+        "news_url": "https://www.cbr.ru/press/event/?id=32929",
+        "status": "PARTIAL",
+        "error": null,
+        "llm_calls": 3,
+        "tools": 2,
+        "replans": 0
+      },
+      "unknown_treasurer": {
+        "run_id": "research_21b1f06bd3ca4deeb9e5",
+        "company_id": "company_554f7bdabbf54bfaa990",
+        "news_url": "https://www.cbr.ru/press/PR/?file=23102026_133000key.htm",
+        "status": "PARTIAL",
+        "error": null,
+        "llm_calls": 3,
+        "tools": 2,
+        "replans": 0
+      }
+    },
+    "all_partial": true,
+    "earlier_failed_attempt_preserved": true,
+    "scope_note": "Real allowed LLM, cached real primary news read by developer collector; subsequent date/lens/missing-label refinements require final cloud checks."
+  },
+  "storage": {
+    "kind": "postgresql",
+    "expires_at": "2026-11-24T09:04:16.966938Z",
+    "predeploy_private_backup": {
+      "bytes": 2199678,
+      "tracked": false
+    },
+    "previous_runtime": "4e353943d8661aecc177aebda6a3f8a28ff2b9c7"
+  },
+  "cloud": {
+    "status": "passed",
+    "deployment_id": "dep-dbfnon7avr4c73dgmhug",
+    "live_at": "2026-10-26T16:15:43.676858Z",
+    "health": {
+      "status": "ok",
+      "version": "0.8.0",
+      "runtime_commit": "d38f3236d078c4f6d3fc61c460365de8c0c67489",
+      "analysis_policy_version": "2026-10-25-v6.2",
+      "mode": "live",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "research_model": "z-ai/glm-5.3-flash",
+      "key_configured": true,
+      "demo_only": true,
+      "company_data": "case_csv_and_company_documents",
+      "team_login": true,
+      "auth_mode": "accounts",
+      "storage": "postgresql",
+      "storage_expires_at": "2026-11-24T09:04:16.966938Z",
+      "readiness": {
+        "ready": true,
+        "database": "ok",
+        "worker_age_seconds": 4.25,
+        "worker": "ok"
+      },
+      "budget_rub_shared": 500,
+      "budget_reset": "03:00 МСК"
+    },
+    "browser_passed": 41,
+    "browser_js_errors": [],
+    "live_runs": [
+      {
+        "type": "floating",
+        "role": "cfo",
+        "run_id": "research_16a84b4d22414df9be81",
+        "status": "PARTIAL",
+        "error_code": null,
+        "llm_calls": 3,
+        "tool_calls": 2,
+        "replans": 0
+      },
+      {
+        "type": "fixed",
+        "role": "treasurer",
+        "run_id": "research_3337a114fe88432581fe",
+        "status": "PARTIAL",
+        "error_code": null,
+        "llm_calls": 3,
+        "tool_calls": 2,
+        "replans": 0
+      }
+    ],
+    "source_path": "normal production feed collection and article reading, not local cache injection",
+    "asset_sha256_checks": "all five JS/CSS matched local files",
+    "previous_report_and_evidence": "unchanged",
+    "scope_note": "Two final-runtime real API checks cover floating CFO and fixed treasurer on same fresh rate-pause publication; six earlier live checks and 24 replays cover wider matrix, not independent gold."
+  },
+  "readme": {
+    "lines": 119,
+    "release_and_session_history_removed": true,
+    "documented_demo_login_verified": true
+  },
+  "remaining": [
+    "Independent human financial/annotation review",
+    "Independent search/novel-event benchmark",
+    "Jury repository access and final contest commit",
+    "Alfa-Business entry mock if required; no banking SSO",
+    "Long-term hosting and backup plan after pilot expiry"
+  ],
+  "sources": {
+    "bank_annotations_sha256": "610b0ffc86322111534fe839732e779e201bcc6e9ddaec65b9bd4f47817002c9",
+    "replay_events_sha256": "c8dd6daf87a66470ac8052459e4d8e412517f70a1c742f856f3f0fab378482a2",
+    "note": "Quoted supplied bank PDFs and primary CBR excerpt fixtures; review is AI assisted, not independent gold."
+  }
+}
