@@ -1,0 +1,658 @@
+{
+  "version": "1.0",
+  "method": "Atomic source-layer quotes checked against supplied PDF page text; no client implications in claims. AI-assisted check, not human expert approval.",
+  "claims": [
+    {
+      "claim_id": "curated_bank_case_06_2_4",
+      "document_id": "bank_case_06",
+      "page": 2,
+      "text": "Именно долгосрочные ОФЗ являются самым рискованным сегментом среди ОФЗ-ПД из-за высокой амплитуды колебания цены при изменении доходности.",
+      "claim_type": "ASSESSMENT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_06_2_13",
+      "document_id": "bank_case_06",
+      "page": 2,
+      "text": "На фоне высокого значения ключевой ставки и волатильности на рынке ОФЗ-ПД корпоративные облигации с фиксированным купоном теряют привлекательность и в глазах инвесторов (из-за опасений подъема ключевой ставки), и в глазах эмитентов, которые не желают фиксировать высокую ставку надолго.",
+      "claim_type": "ASSESSMENT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_06_2_16",
+      "document_id": "bank_case_06",
+      "page": 2,
+      "text": "Корпоративные облигации с переменным купоном. Основной инструмент привлечения компаниями средств на публичном долговом рынке, формируют более 50% рынка, купон привязан к уровню ключевой ставки или RUONIA и в подавляющем большинстве случаев определяется по формуле КC+спред.",
+      "claim_type": "FACT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_06_2_18",
+      "document_id": "bank_case_06",
+      "page": 2,
+      "text": "Из-за доминирования выпусков с плавающей ставкой, сегмент корпоративных облигаций «отвязался» от рынка ОФ3, теперь рост доходности ОФЗ не препятствует активному размещению корпоративных облигаций, т.к. основным параметром для этого сегмента является уровень ключевой ставки, а не доходность ОФЗ (как было до 2022 г.).",
+      "claim_type": "ASSESSMENT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_06_3_2",
+      "document_id": "bank_case_06",
+      "page": 3,
+      "text": "Именно геополитический прогресс мог бы стать ключевым драйвером роста для рисковых активов, к которым мы относим длинные облигации с фиксированным купоном (корпоративные и ОФЗ-ПД).",
+      "claim_type": "SCENARIO",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [
+        "геополитический прогресс"
+      ],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_06_3_7",
+      "document_id": "bank_case_06",
+      "page": 3,
+      "text": "В этой связи, по нашему мнению, у институциональных инвесторов, показавших положительный результат в 1П26 г., будет преобладать мотивация сохранить позитивный результат и во 2П26 г. (благодаря вложениям в защитные активы), нежели взять риск.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": "по нашему мнению",
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_06_3_11",
+      "document_id": "bank_case_06",
+      "page": 3,
+      "text": "Мы ожидаем, что 24 июля регулятор сохранит ставку неизменной на уровне 14,25%, при этом прогноз по среднему уровню ключевой ставки в 2026 и 2027 гг. будет пересмотрен вверх.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": "24 июля",
+        "start": "2026-07-24",
+        "end": "2026-07-24"
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": "Мы ожидаем",
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_06_3_12",
+      "document_id": "bank_case_06",
+      "page": 3,
+      "text": "Мы не исключаем усиления давления на рынок облигаций с фиксированным купоном после июльского заседания.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": "Мы не исключаем",
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_06_3_15",
+      "document_id": "bank_case_06",
+      "page": 3,
+      "text": "На фоне того, что регулятор ожидает бОльшего вклада со стороны госсектора в совокупный спрос, в то время как показатели спроса в настоящее время уверенно растут, мы ожидаем, что до получения утоненных данных по бюджету (осенью) регулятор будет действовать осторожно, особенно с учетом возросших в последнее время инфляционных рисков (в т.ч. из-за возобновления конфликта на Ближнем Востоке).",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": "мы ожидаем",
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_06_3_17",
+      "document_id": "bank_case_06",
+      "page": 3,
+      "text": "Несмотря на привлекательный уровень доходности длинных ОФЗ-ПД на уровне выше 16,5%, мы не считаем текущий момент подходящим для открытия спекулятивных позиций.",
+      "claim_type": "ASSESSMENT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-22",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "6c3a4882ee784b608880693d8ba2b62d0ba2236e34b404179adaab909c6dd046",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_09_1_2",
+      "document_id": "bank_case_09",
+      "page": 1,
+      "text": "В целом по итогам недели на среднем и дальнем участках кривой ОФЗ доходность выросла на 10-17 б.п.",
+      "claim_type": "FACT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-09-14",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "87dc17520e2a744f95580ee2ec42461d0ee6ebf19e752622a49c49600cb1b055",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_09_1_6",
+      "document_id": "bank_case_09",
+      "page": 1,
+      "text": "Примечательно, что долговой рынок проигнорировал мягкий комментарий Председателя ЦБ о том, что если правительство предложит более быстрый выход на нулевой первичный дефицит бюджета, чем сейчас заложено в прогнозе, это будет способствовать смягчению ДКП.",
+      "claim_type": "ASSESSMENT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-09-14",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "87dc17520e2a744f95580ee2ec42461d0ee6ebf19e752622a49c49600cb1b055",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_09_1_9",
+      "document_id": "bank_case_09",
+      "page": 1,
+      "text": "Основной фокус будет, вероятно, направлен на бюджетные параметры, которые будут объявлены, однако важное значение будет также иметь динамика кредитования юрлиц и индикаторы потребительского спроса.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-09-14",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "87dc17520e2a744f95580ee2ec42461d0ee6ebf19e752622a49c49600cb1b055",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_09_1_10",
+      "document_id": "bank_case_09",
+      "page": 1,
+      "text": "На горизонте ближайших недель мы не видим драйверов для улучшения настроений на рынке ОФЗ.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-09-14",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "87dc17520e2a744f95580ee2ec42461d0ee6ebf19e752622a49c49600cb1b055",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_09_1_19",
+      "document_id": "bank_case_09",
+      "page": 1,
+      "text": "Мы полагаем, что если в текущей конъюнктура Минфин вернется к активному размещению ОФЗ-ПД, это может оказать заметное давление на рынок ОФЗ.",
+      "claim_type": "SCENARIO",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-09-14",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [
+        "если в текущей конъюнктура Минфин вернется к активному размещению ОФЗ-ПД"
+      ],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "87dc17520e2a744f95580ee2ec42461d0ee6ebf19e752622a49c49600cb1b055",
+      "significance": "SUPPORTING",
+      "modality_raw": "Мы полагаем",
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_05_1_5",
+      "document_id": "bank_case_05",
+      "page": 1,
+      "text": "Охлаждение номинальных зарплат происходит быстрее, чем мы предполагали, однако оживление кредитной активности и снижение нормы сбережений будут поддерживать конечный спрос в ближайшее время.",
+      "claim_type": "ASSESSMENT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-31",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "84899553fadf3e49abac7074c7b7d2afc2fa5c70b7fde0bf4c3eabe3d7402266",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_05_1_6",
+      "document_id": "bank_case_05",
+      "page": 1,
+      "text": "С учетом динамики показателей мая-июня мы видим необходимость в следующих корректировках наших прогнозов на 2026 год: • Мы понижаем наш прогноз темпов роста ВВП до 0,1% г/г.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-31",
+      "time_scope": {
+        "raw": "на 2026 год",
+        "start": null,
+        "end": "2026-12-31"
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "84899553fadf3e49abac7074c7b7d2afc2fa5c70b7fde0bf4c3eabe3d7402266",
+      "significance": "SUPPORTING",
+      "modality_raw": "Мы понижаем",
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_05_1_7",
+      "document_id": "bank_case_05",
+      "page": 1,
+      "text": "Более слабые темпы роста в 2026 г. будут отражать сочетание более глубокого спада инвестиций (-4,0% г/г), более быстрого роста потребления (+3,3% г/г) и более быстрого роста импорта товаров (+11% г/г).",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-31",
+      "time_scope": {
+        "raw": "в 2026 г.",
+        "start": null,
+        "end": "2026-12-31"
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "84899553fadf3e49abac7074c7b7d2afc2fa5c70b7fde0bf4c3eabe3d7402266",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_05_1_9",
+      "document_id": "bank_case_05",
+      "page": 1,
+      "text": "• При этом с учетом ограничений но стороне предложения мы ожидаем, что инфляция составит 7,5% г/г по итогам текущего года, что будет сдерживать снижение ключевой ставки.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-31",
+      "time_scope": {
+        "raw": "по итогам текущего года",
+        "start": null,
+        "end": "2026-12-31"
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "84899553fadf3e49abac7074c7b7d2afc2fa5c70b7fde0bf4c3eabe3d7402266",
+      "significance": "SUPPORTING",
+      "modality_raw": "мы ожидаем",
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_05_1_11",
+      "document_id": "bank_case_05",
+      "page": 1,
+      "text": "• Прогноз по курсу рубля остоется без изменений на уровне 87 руб./$ но конец 2026 года.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-07-31",
+      "time_scope": {
+        "raw": "но конец 2026 года",
+        "start": null,
+        "end": "2026-12-31"
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "84899553fadf3e49abac7074c7b7d2afc2fa5c70b7fde0bf4c3eabe3d7402266",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_03_1_5",
+      "document_id": "bank_case_03",
+      "page": 1,
+      "text": "Основной причиной мы считаем замедление роста потребления в сегменте непродовольственных товаров, в частности в сегменте покупок автомобилей.",
+      "claim_type": "ASSESSMENT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-09-07",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "3c64c1e43f3b46a795f9581967f2dbc8efb0994cb77ab82e95da180830e9ff8c",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_03_1_7",
+      "document_id": "bank_case_03",
+      "page": 1,
+      "text": "В ближайшие месяцы мы ориентируемся на дополнительное замедление роста потребления на фоне более слабых продаж автомобилей - в августе объем их продаж упал на 7% как к июлю 2026 г., так и в годовом выражении.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-09-07",
+      "time_scope": {
+        "raw": "В ближайшие месяцы",
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "3c64c1e43f3b46a795f9581967f2dbc8efb0994cb77ab82e95da180830e9ff8c",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_03_1_15",
+      "document_id": "bank_case_03",
+      "page": 1,
+      "text": "С учетом того, что в летние месяцы негативное развитие событий касалось не только сегмента нефтепереработки, но и других отраслей (складов и транспортной инфраструктуры), мы ожидаем, что в ближайшие месяцы показатели финансов компаний останутся на низких уровнях.",
+      "claim_type": "FORECAST",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-09-07",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "3c64c1e43f3b46a795f9581967f2dbc8efb0994cb77ab82e95da180830e9ff8c",
+      "significance": "SUPPORTING",
+      "modality_raw": "мы ожидаем",
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    },
+    {
+      "claim_id": "curated_bank_case_03_1_16",
+      "document_id": "bank_case_03",
+      "page": 1,
+      "text": "По всей видимости, именно этот фактор вызывает ускоренный рост корпоративного кредитования - напомним, что в июле корпоративный кредитный портфель вырос на 1,3% м/м, а в годовом выражении ускорился до 13,5% г/г, по данным ЦБ РФ.",
+      "claim_type": "ASSESSMENT",
+      "owner": {
+        "kind": "bank",
+        "name": "Альфа-Банк",
+        "raw_attribution": null
+      },
+      "published_at": "2026-09-07",
+      "time_scope": {
+        "raw": null,
+        "start": null,
+        "end": null
+      },
+      "conditions": [],
+      "review_status": "source_checked_ai_assisted",
+      "human_verified": false,
+      "source_sha256": "3c64c1e43f3b46a795f9581967f2dbc8efb0994cb77ab82e95da180830e9ff8c",
+      "significance": "SUPPORTING",
+      "modality_raw": null,
+      "extraction_issues": [
+        "OCR орфография сохранена; числовые/смысловые опоры сверены с изображением страницы."
+      ]
+    }
+  ]
+}

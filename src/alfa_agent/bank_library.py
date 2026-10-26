@@ -32,6 +32,38 @@ class BankLibrary:
     def __init__(self, root):
         path = root / "data/bank_library.json"
         self.documents = json.loads(path.read_text()) if path.is_file() else []
+        annotations = root / "data/bank_annotations.json"
+        self.annotations = json.loads(annotations.read_text())["claims"] if annotations.is_file() else []
+        for claim in self.annotations:
+            document = next(d for d in self.documents if d["document_id"] == claim["document_id"])
+            page = next(p for p in document["pages"] if p["page"] == claim["page"])
+            if " ".join(claim["text"].split()) not in " ".join(page["text"].split()):
+                raise ValueError("bank_annotation_quote_mismatch:" + claim["claim_id"])
+
+    def search_claims(self, query, limit=6, document_id=None):
+        wanted = bank_query_terms(query)
+        ranked = []
+        for claim in self.annotations:
+            if document_id and claim["document_id"] != document_id:
+                continue
+            score = len(terms(claim["text"]) & wanted)
+            if score:
+                ranked.append((score, claim))
+        ranked.sort(key=lambda row: row[0], reverse=True)
+        result = []
+        for _, claim in ranked[:limit]:
+            doc = next(d for d in self.documents if d["document_id"] == claim["document_id"])
+            result.append({
+                "source_id": claim["claim_id"], "kind": "bank_claim", "document_id": claim["document_id"],
+                "title": doc["title"], "publisher": doc["publisher"], "url": doc["url"],
+                "published_at": claim["published_at"], "page": claim["page"], "text": claim["text"],
+                "claim_type": claim["claim_type"], "claim_owner": claim["owner"]["name"],
+                "forecast_horizon": claim["time_scope"], "conditions": claim["conditions"],
+                "review_status": claim["review_status"], "human_verified": False,
+                "source_sha256": claim["source_sha256"],
+                "limitations": "Сверено с текстом и изображением PDF с помощью AI; независимая человеческая экспертиза не выполнена. Мнение действует на дату документа; OCR может содержать опечатки.",
+            })
+        return result
 
     def summary(self):
         return [{k: v for k, v in d.items() if k != "pages"} for d in self.documents]

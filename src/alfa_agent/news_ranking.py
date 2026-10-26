@@ -295,6 +295,17 @@ def company_context(snapshot):
     for factor in factors:
         factor["synthetic"] = bool(synthetic or factor.get("synthetic"))
     grouped = {}
+    from .funding import debt_terms
+    contract, contract_key = debt_terms(snapshot)
+    if contract_key:
+        priority_topics.update({"rates", "funding"})
+        if contract.rate_type != "unknown":
+            exposure_topics.update({"rates", "funding"})
+            factors.append({
+                "key":"debt_contract", "label":"Договор финансирования",
+                "value":("Плавающая" if contract.rate_type == "floating" else "Фиксированная") + " ставка; " + contract.facility_name,
+                "topics":["rates","funding"],"origin":"user_confirmed","source_refs":[],"synthetic":contract.synthetic,
+            })
     for factor in factors:
         grouped.setdefault(factor["key"], []).append(factor)
     factor_conflicts = [

@@ -33,6 +33,7 @@ from .operations import HttpMetrics
 from .identity import current_principal, create_principal, restore_principal, PUBLIC_DEMO_RUNS
 from .research import ResearchRequest, ResearchAnswer
 from .periods import period_intent, NEWS_DAYS, PLANNING_DAYS
+from .funding import FundingUpdate, debt_terms, terms_json
 from .personalization import PreferencesUpdate, ROLE_NAMES
 from .company_dialogue import ContextMessage, ContextConfirm
 from . import __version__
@@ -904,6 +905,24 @@ def create_app(settings=None):
             media_type="application/json",
             headers={"Content-Disposition": 'attachment; filename="insight.json"'},
         )
+
+    @app.get("/api/companies/{company_id}/funding")
+    def get_funding(company_id: str):
+        service = app.state.service
+        service.authorize_company(company_id)
+        snapshot = service.workspace.snapshot(company_id, service.corpus)
+        terms, key = debt_terms(snapshot)
+        return {"terms": terms.model_dump(mode="json"), "context_key": key, "revision": snapshot.get("context", {}).get("revision", 0)}
+
+    @app.put("/api/companies/{company_id}/funding")
+    def save_funding(company_id: str, payload: FundingUpdate):
+        service = app.state.service
+        service.authorize_company(company_id)
+        value = ContextConfirm(expected_revision=payload.expected_revision, fields=[{
+            "key":"debt_contract", "category":"finance", "label":"Условия договора финансирования", "value":terms_json(payload.terms),
+        }])
+        service.context_dialogue.save_fields(company_id, value)
+        return get_funding(company_id)
 
     @app.get("/api/research/periods")
     def research_periods(

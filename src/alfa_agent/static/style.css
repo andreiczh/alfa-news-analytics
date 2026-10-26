@@ -1898,3 +1898,46 @@ dialog::backdrop {
     align-items: flex-start;
   }
 }
+
+.funding-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+.funding-form .check-row {
+  grid-column: 1/-1;
+}
+.funding-form .field {
+  margin: 0;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.funding-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.funding-table th,
+.funding-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.bank-funding-basis {
+  margin-top: 20px;
+}
+.funding-analysis pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .funding-form {
+    grid-template-columns: 1fr;
+  }
+  .funding-table th,
+  .funding-table td {
+    padding: 8px;
+    font-size: 12px;
+  }
+}

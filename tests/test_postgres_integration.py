@@ -81,28 +81,100 @@ def test_pg_research_context_refresh_preserves_original_and_excludes_old_interna
 
     service = pg_services()
     cid = service.workspace.create_company("Синтетическая PostgreSQL-компания P0")["company_id"]
-    request = ResearchRequest(company_id=cid, question="Какие условия финансирования проверить?", public_search=False)
+    request = ResearchRequest(
+        company_id=cid, question="Какие условия финансирования проверить?", public_search=False
+    )
     parent = service.research.create(request, "pg-p0-parent")
     row = service.research._row(parent["run_id"])
     row["state"]["sources"] = [
-        {"source_id": "old_private", "kind": "company_evidence", "text": "Синтетические старые внутренние данные."},
+        {
+            "source_id": "old_private",
+            "kind": "company_evidence",
+            "text": "Синтетические старые внутренние данные.",
+        },
         {"source_id": "external", "kind": "public_page", "text": "Синтетический внешний источник."},
     ]
     with service.store.connection() as db:
-        db.execute("UPDATE research_jobs SET state_json=? WHERE id=?", (json.dumps(row["state"]), parent["run_id"]))
+        db.execute(
+            "UPDATE research_jobs SET state_json=? WHERE id=?", (json.dumps(row["state"]), parent["run_id"])
+        )
     before = service.research._row(parent["run_id"])
-    service.context_dialogue.save_fields(cid, ContextConfirm(expected_revision=0, fields=[{
-        "key": "funding", "category": "finance", "label": "Условия финансирования",
-        "value": "Синтетические актуальные условия: фиксированная ставка.",
-    }]))
-    original = service.research.create(request.model_copy(update={"parent_id": parent["run_id"]}), "pg-p0-original")
-    current = service.research.create(request.model_copy(update={"parent_id": parent["run_id"], "context_mode": "current"}), "pg-p0-current")
+    service.context_dialogue.save_fields(
+        cid,
+        ContextConfirm(
+            expected_revision=0,
+            fields=[
+                {
+                    "key": "funding",
+                    "category": "finance",
+                    "label": "Условия финансирования",
+                    "value": "Синтетические актуальные условия: фиксированная ставка.",
+                }
+            ],
+        ),
+    )
+    original = service.research.create(
+        request.model_copy(update={"parent_id": parent["run_id"]}), "pg-p0-original"
+    )
+    current = service.research.create(
+        request.model_copy(update={"parent_id": parent["run_id"], "context_mode": "current"}), "pg-p0-current"
+    )
     assert original["profile_snapshot_id"] == parent["profile_snapshot_id"]
     assert current["profile_snapshot_id"] != parent["profile_snapshot_id"]
     assert {s["source_id"] for s in current["sources"]} == {"external"}
     assert {s["source_id"] for s in original["sources"]} == {"external", "old_private"}
     assert current["context_version"]["context_revision"] == 1
     assert service.research._row(parent["run_id"]) == before
+
+
+def test_pg_funding_contract_keeps_typed_values_and_frozen_evidence(pg_services):
+    from alfa_agent.company_dialogue import ContextConfirm
+    from alfa_agent.funding import DebtTerms, debt_terms, terms_json, funding_analysis
+
+    service = pg_services()
+    cid = service.workspace.create_company("Синтетический договор PostgreSQL")["company_id"]
+    value = DebtTerms(
+        rate_type="fixed",
+        fixed_until="2027-12-31",
+        maturity_at="2028-01-01",
+        no_rate_review_confirmed=True,
+        synthetic=True,
+    )
+    service.context_dialogue.save_fields(
+        cid,
+        ContextConfirm(
+            expected_revision=0,
+            fields=[
+                {
+                    "key": "debt_contract",
+                    "category": "finance",
+                    "label": "Договор",
+                    "value": terms_json(value),
+                }
+            ],
+        ),
+    )
+    old = service.workspace.snapshot(cid, service.corpus, persist=True)
+    service.context_dialogue.save_fields(
+        cid,
+        ContextConfirm(
+            expected_revision=1,
+            fields=[
+                {
+                    "key": "debt_contract",
+                    "category": "finance",
+                    "label": "Договор",
+                    "value": terms_json(DebtTerms(synthetic=True)),
+                }
+            ],
+        ),
+    )
+    frozen = service.workspace.load_snapshot(old["snapshot_id"], cid)
+    assert debt_terms(frozen)[0].rate_type == "fixed"
+    assert funding_analysis(frozen, "cfo", "2026-10-26T00:00:00+03:00", 90)["status"] == "fixed_protected"
+    assert not funding_analysis(
+        service.workspace.snapshot(cid, service.corpus), "cfo", "2026-10-26T00:00:00+03:00", 90
+    )["scenarios"]
 
 
 def test_pg_operator_provisioning_is_safe_on_concurrent_replay(pg_services):

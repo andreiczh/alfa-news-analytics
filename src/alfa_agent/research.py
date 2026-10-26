@@ -123,6 +123,7 @@ class ResearchRole(Strict):
 
 
 class ResearchDraft(Strict):
+    funding_analysis: dict | None = None
     title: str = Field(min_length=10, max_length=160)
     summary: str = Field(min_length=20, max_length=850)
     findings: list[Finding] = Field(min_length=1, max_length=6)
@@ -1333,6 +1334,8 @@ class ResearchEngine:
                         snapshot["evidence"], key=lambda e: len(terms(e["quote"]) & wanted), reverse=True
                     )[:5]
                     important = [e for e in snapshot["evidence"] if "_context_" in e["evidence_id"]][:8]
+                    debt_evidence = [e for e in snapshot["evidence"] if "_context_debt_contract_" in e["evidence_id"]]
+                    important = list({e["evidence_id"]:e for e in [*debt_evidence,*important]}.values())[:8]
                     evidence = list({e["evidence_id"]: e for e in [*important, *evidence]}.values())[:12]
                     items = []
                     for e in evidence:
@@ -1395,10 +1398,16 @@ class ResearchEngine:
                     add_sources(items)
                     count = len(items)
                 elif action.tool == "bank":
+                    from .funding import debt_terms
+                    debt, _ = debt_terms(snapshot)
+                    query = action.query or request["question"]
+                    if not request["bank_company"] and re.search(r"ставк|фондир|долг|кредит|финансир", request["question"], re.I):
+                        query += " корпоративные облигации купон " + ("переменный RUONIA ключевая ставка" if debt.rate_type == "floating" else "фиксированный")
                     items = self.research.bank.search(
-                        action.query or request["question"],
+                        query,
                         document_id=request.get("bank_document_id"),
                     )
+                    items = self.research.bank.search_claims(query, document_id=request.get("bank_document_id")) + items
                     if action.topic == "rates" and request.get("bank_document_id") in {None, "bank_case_04"}:
                         for claim in self.service.corpus.claims.values():
                             document = self.service.corpus.documents[claim.document_id]
@@ -1585,6 +1594,17 @@ class ResearchEngine:
                     selection_schema(ledger, request["bank_company"]),
                 )
                 try:
+                    from .funding import funding_memo
+                    supported = funding_memo(ledger, state["sources"], request, snapshot)
+                    if supported:
+                        # Refine the model's choice with independently present bank
+                        # and selected-event evidence; all usual guards still run.
+                        refs = supported.main_conclusion.anchor_ids[:2]
+                        selected = ResearchSelection.model_validate({
+                            "findings":[{"mechanism":"corporate_funding","anchor_ids":refs,"priority":"check_now"}],
+                            "bank_anchor_id":refs[1],
+                        })
+                        audit("governed_financial_selection", {"module":"corporate_funding_v1","anchor_ids":refs})
                     draft = assemble_research(selected, ledger, request, snapshot)
                     narrative_payload = {
                         "question": request["question"],
@@ -1610,16 +1630,18 @@ class ResearchEngine:
                         },
                     }
                     from .rate_policy import rate_pause_memo
+                    from .funding import funding_memo, funding_analysis, news_lens
 
-                    governed = rate_pause_memo(ledger, state["sources"], request, snapshot)
+                    corporate_memo = funding_memo(ledger, state["sources"], request, snapshot)
+                    governed = corporate_memo or rate_pause_memo(ledger, state["sources"], request, snapshot)
                     for revision in range(1 + self.settings.max_replans):
                         if governed is not None:
                             narrative = governed
                             audit(
                                 "governed_financial_narrative",
                                 {
-                                    "module": "rate_pause_policy_v1",
-                                    "scope": "fresh_read_primary_cbr_unchanged_rate_event",
+                                    "module": "corporate_funding_v1" if corporate_memo else "rate_pause_policy_v1",
+                                    "scope": "read_primary_cbr_corporate_contract_sensitivity" if corporate_memo else "fresh_read_primary_cbr_unchanged_rate_event",
                                 },
                             )
                         else:
@@ -1710,8 +1732,26 @@ class ResearchEngine:
                         draft.title, draft.summary = narrative.title, narrative.main_conclusion.text
                         draft.narrative["planning_policy"] = narrative_payload["analysis_policy"]
                         draft.narrative["generation_mode"] = (
-                            "rate_pause_policy_v1" if governed is not None else "llm_source_bound"
+                            "corporate_funding_v1" if corporate_memo else "rate_pause_policy_v1" if governed is not None else "llm_source_bound"
                         )
+                        if request["role"] in {"cfo","treasurer"} and re.search(r"ставк|фондир|финансир|долг|кредит|ликвид|инфляц", request["question"], re.I):
+                            draft.funding_analysis = funding_analysis(snapshot, request["role"], request["as_of"], request.get("planning_days",30), request["bank_company"])
+                            draft.funding_analysis["source_anchor_ids"] = [a["anchor_id"] for a in ledger if a.get("context_key")=="debt_contract"]
+                            event_source = next((s for s in state["sources"] if s["kind"]=="public_page" and (s["source_id"]==request.get("news_item_id") if request.get("news_item_id") else s.get("provided_for_current_question"))), None)
+                            if event_source:
+                                draft.funding_analysis["news_lens"] = news_lens(event_source)
+                            if corporate_memo:
+                                funding_labels = {label for _, label in RULES["corporate_funding"]["needs"]}
+                                draft.missing_data = list(dict.fromkeys([x for x in draft.missing_data if x not in funding_labels] + draft.funding_analysis["missing_data"]))
+                                draft.missing_data.append("Денежный план компании для проверки общей ликвидности" if request["role"] == "treasurer" else "Бюджет и условия нового привлечения для оценки общего финансового эффекта")
+                            if draft.funding_analysis["scenarios"] and not draft.funding_analysis["source_anchor_ids"]:
+                                raise ValueError("funding_calculation_missing_company_evidence")
+                            draft.funding_analysis["bank_basis"] = [{
+                                "source_id":a["source_id"], "quote":a["quote"], "published_at":a.get("published_at"),
+                                "claim_type":a.get("claim_type"), "page":a.get("page"),
+                                "application":"Интерпретация сервиса: формат купона из обзора банка помогает разделить действующий договор, его переоценку и новое привлечение. Условия компании подтверждаются отдельно; исторический прогноз банка не является текущим исходом.",
+                            } for a in ledger if a["source_id"] in {"curated_bank_case_06_2_13","curated_bank_case_06_2_16"}][:2]
+                            audit("funding_calculation", draft.funding_analysis)
                         draft.narrative["financial_scope"] = {
                             "net_company_effect": "not_calculated",
                             "reason": "В исследовании не выполнялся расчёт по полной финансовой модели; описаны условные каналы влияния.",

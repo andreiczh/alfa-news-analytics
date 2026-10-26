@@ -1497,6 +1497,8 @@ function renderResult(main, j) {
   );
   main.append(summary);
   renderNarrative(main, j);
+  const funding = renderFundingAnalysis(j);
+  if (funding) main.append(funding);
   const roleCard = card();
   const views = r.role_views;
   const active = views.find((v) => v.role === S.role);
@@ -1796,6 +1798,7 @@ function exportReport(j) {
     "",
   ];
   exportNarrative(lines, r.narrative);
+  exportFunding(lines, r.funding_analysis);
   for (const f of r.findings) {
     lines.push("## " + f.text, "", f.why_company, "", f.consequence, "");
     if (f.condition) lines.push("Условие: " + f.condition, "");
@@ -1874,6 +1877,7 @@ function renderCompany(main) {
   const left = node("div", "stack"),
     right = node("aside", "stack");
   main.append(renderCompanyContext());
+  main.append(renderFundingProfile());
   left.append(renderWorkspaceSearch("company"));
   const docs = card();
   add(
