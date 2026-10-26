@@ -74,6 +74,37 @@ def test_only_packaged_public_examples_are_seeded_once(pg_services):
         assert service.workspace.file_path(row).is_file()
 
 
+def test_pg_research_context_refresh_preserves_original_and_excludes_old_internal_sources(pg_services):
+    import json
+    from alfa_agent.company_dialogue import ContextConfirm
+    from alfa_agent.research import ResearchRequest
+
+    service = pg_services()
+    cid = service.workspace.create_company("Синтетическая PostgreSQL-компания P0")["company_id"]
+    request = ResearchRequest(company_id=cid, question="Какие условия финансирования проверить?", public_search=False)
+    parent = service.research.create(request, "pg-p0-parent")
+    row = service.research._row(parent["run_id"])
+    row["state"]["sources"] = [
+        {"source_id": "old_private", "kind": "company_evidence", "text": "Синтетические старые внутренние данные."},
+        {"source_id": "external", "kind": "public_page", "text": "Синтетический внешний источник."},
+    ]
+    with service.store.connection() as db:
+        db.execute("UPDATE research_jobs SET state_json=? WHERE id=?", (json.dumps(row["state"]), parent["run_id"]))
+    before = service.research._row(parent["run_id"])
+    service.context_dialogue.save_fields(cid, ContextConfirm(expected_revision=0, fields=[{
+        "key": "funding", "category": "finance", "label": "Условия финансирования",
+        "value": "Синтетические актуальные условия: фиксированная ставка.",
+    }]))
+    original = service.research.create(request.model_copy(update={"parent_id": parent["run_id"]}), "pg-p0-original")
+    current = service.research.create(request.model_copy(update={"parent_id": parent["run_id"], "context_mode": "current"}), "pg-p0-current")
+    assert original["profile_snapshot_id"] == parent["profile_snapshot_id"]
+    assert current["profile_snapshot_id"] != parent["profile_snapshot_id"]
+    assert {s["source_id"] for s in current["sources"]} == {"external"}
+    assert {s["source_id"] for s in original["sources"]} == {"external", "old_private"}
+    assert current["context_version"]["context_revision"] == 1
+    assert service.research._row(parent["run_id"]) == before
+
+
 def test_pg_operator_provisioning_is_safe_on_concurrent_replay(pg_services):
     from alfa_agent.accounts import AuthError, password_hash
 

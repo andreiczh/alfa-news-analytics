@@ -1,5 +1,154 @@
 "use strict";
 
+function syncPeriodControls() {
+  for (const select of document.querySelectorAll(
+    "[data-news-period], #news-window",
+  ))
+    select.value = String(S.newsDays);
+  for (const select of document.querySelectorAll(
+    "[data-planning-period], #research-horizon",
+  ))
+    select.value = String(S.draft.planningDays || 30);
+}
+
+function setNewsPeriod(days) {
+  S.newsDays = Number(days);
+  S.newsExpanded = false;
+  if (S.quick.result) {
+    S.quick.result = null;
+    updateWorkspaceSearch("all");
+  }
+  syncPeriodControls();
+  loadNews(false);
+}
+
+function renderQuestionPeriods() {
+  const controls = node("div", "question-periods");
+  for (const [axis, label, choices, selected] of [
+    ["news", "Новости за", [7, 30, 90], S.newsDays],
+    [
+      "planning",
+      "Планирование вперёд",
+      [7, 30, 90, 365],
+      S.draft.planningDays || 30,
+    ],
+  ]) {
+    const select = node("select");
+    select.id = "workspace-" + axis + "-days";
+    select.setAttribute("data-" + axis + "-period", "");
+    for (const days of choices) {
+      const option = node(
+        "option",
+        "",
+        days === 365 ? "1 год" : days + " дней",
+      );
+      option.value = String(days);
+      select.append(option);
+    }
+    select.value = String(selected);
+    select.addEventListener("change", () => {
+      if (axis === "news") setNewsPeriod(select.value);
+      else {
+        S.draft.planningDays = Number(select.value);
+        syncPeriodControls();
+        updateWorkspaceSearch("all");
+      }
+    });
+    controls.append(field(label, select));
+  }
+  return controls;
+}
+
+async function chooseQuestionPeriods(question, newsDays, planningDays) {
+  const intent = await api(
+    "/api/research/periods?" +
+      new URLSearchParams({
+        q: question,
+        news_days: String(newsDays),
+        planning_days: String(planningDays),
+      }),
+  );
+  if (!intent.needs_confirmation)
+    return {
+      news_days: newsDays,
+      planning_days: planningDays,
+      periods_confirmed: false,
+    };
+  return new Promise((resolve) => {
+    const content = node("div", "stack");
+    content.append(
+      p("Вопрос и настройки периода требуют уточнения. Анализ ещё не запущен."),
+    );
+    for (const issue of intent.issues) {
+      const axis =
+        issue.axis === "news" ? "период новостей" : "горизонт планирования";
+      content.append(
+        p(
+          issue.reason === "mismatch"
+            ? "В вопросе: " + axis + " " + issue.days + " дней."
+            : issue.reason === "unsupported"
+              ? "В вопросе: " +
+                axis +
+                " " +
+                issue.days +
+                " дней — такой вариант сейчас не поддерживается."
+              : issue.reason === "ambiguous"
+                ? "В вопросе несколько вариантов: " +
+                  axis +
+                  " " +
+                  issue.values.join(" / ") +
+                  " дней."
+                : "Календарную границу из вопроса нужно задать доступным горизонтом или уточнить формулировку.",
+        ),
+      );
+    }
+    content.append(
+      p(
+        "Выбрано: новости за " +
+          newsDays +
+          " дней; планирование на " +
+          planningDays +
+          " дней.",
+        "period-selection",
+      ),
+    );
+    content.append(p(intent.scope, "fine-print"));
+    const dialog = $("#dialog");
+    const cancel = () => resolve(null);
+    const finish = (values) => {
+      dialog.removeEventListener("close", cancel);
+      closeModal();
+      resolve({ ...values, periods_confirmed: true });
+    };
+    const actions = node("div", "row");
+    if (intent.issues.every((issue) => issue.reason === "mismatch"))
+      actions.append(
+        button(
+          "Применить периоды из вопроса",
+          () =>
+            finish({
+              news_days: intent.detected_news_days || newsDays,
+              planning_days: intent.detected_planning_days || planningDays,
+            }),
+          "button primary",
+        ),
+      );
+    actions.append(
+      button(
+        "Использовать выбранные периоды",
+        () => finish({ news_days: newsDays, planning_days: planningDays }),
+        "button",
+      ),
+    );
+    actions.append(
+      button("Изменить вопрос", () => closeModal(), "text-button"),
+    );
+    content.append(actions);
+    modal("Уточните периоды", content);
+    dialog.addEventListener("close", cancel, { once: true });
+  });
+}
+
 function resetWorkspaceViews(keepQuery = false) {
   S.quick = {
     query: keepQuery ? S.quick.query : "",
@@ -56,6 +205,7 @@ function renderWorkspaceSearch(scope = "all") {
   });
   c.append(form);
   if (scope === "all") {
+    c.append(renderQuestionPeriods());
     const chips = node("div", "chips");
     const questions = isBank()
       ? ["Фондирование и ликвидность", "Процентная маржа", "Ставка"]
@@ -102,6 +252,26 @@ async function runWorkspaceSearch(scope = "all", silent = false) {
   state.error = null;
   updateWorkspaceSearch(scope);
   try {
+    if (scope === "all" && !silent) {
+      const periods = await chooseQuestionPeriods(
+        query,
+        S.newsDays,
+        S.draft.planningDays || 30,
+      );
+      if (
+        !periods ||
+        S[key] !== state ||
+        cid !== S.company?.company_id ||
+        role !== S.role
+      )
+        return;
+      const changed = S.newsDays !== periods.news_days;
+      S.newsDays = periods.news_days;
+      S.draft.planningDays = periods.planning_days;
+      state.periodsConfirmed = periods.periods_confirmed;
+      syncPeriodControls();
+      if (changed) loadNews(false);
+    }
     const result = await api(
       "/api/companies/" +
         encodeURIComponent(cid) +
@@ -116,6 +286,7 @@ async function runWorkspaceSearch(scope = "all", silent = false) {
     )
       return;
     state.result = result;
+    state.result.planning_days = S.draft.planningDays || 30;
   } catch (error) {
     if (S[key] === state && state.requestId === requestId)
       state.error = message(error);
@@ -150,6 +321,17 @@ function renderSearchResults(scope) {
     node("h3", "search-query-title", "По запросу «" + result.query + "»"),
     p(result.summary, "caption"),
   );
+  if (scope === "all")
+    c.append(
+      p(
+        "Новости за " +
+          result.days +
+          " дней · планирование на " +
+          (S.draft.planningDays || 30) +
+          " дней. Материалы банка и компании имеют собственные даты.",
+        "caption",
+      ),
+    );
   if (scope === "all" && result.news_checked_at)
     c.append(
       p(
@@ -226,6 +408,11 @@ function renderSearchResults(scope) {
         startResearch(q, {
           bank_document_id: null,
           seed_news_ids: result.news.slice(0, 3).map((item) => item.news_id),
+          news_days: result.days,
+          periods_confirmed:
+            !!state.periodsConfirmed &&
+            result.days === S.newsDays &&
+            result.planning_days === (S.draft.planningDays || 30),
         }),
       "button primary",
       "spark",
@@ -273,6 +460,93 @@ function renderSearchResults(scope) {
   return c;
 }
 
+function renderDecisionSignal(item) {
+  const decision = item.decision || {};
+  const content = node("div", "decision-signal");
+  const factor = decision.company_factor;
+  const factorBlock = node("div", "decision-factor");
+  factorBlock.append(node("span", "decision-label", "Фактор компании"));
+  if (factor) {
+    const preview =
+      factor.value.length > 240
+        ? factor.value.slice(0, 240) + "…"
+        : factor.value;
+    factorBlock.append(p(factor.label + ": " + preview));
+    factorBlock.append(
+      p(
+        factor.synthetic
+          ? "Синтетические вводные"
+          : factor.origin === "user_confirmed"
+            ? "Указано вами"
+            : "Из профиля компании",
+        "caption",
+      ),
+    );
+  } else
+    factorBlock.append(
+      p(
+        decision.company_factor_conflicts?.length
+          ? "Данные компании противоречат друг другу: «" +
+              decision.company_factor_conflicts[0] +
+              "». Фактор требует проверки."
+          : "Связь с конкретными условиями компании пока не подтверждена.",
+      ),
+    );
+  content.append(factorBlock);
+  content.append(
+    node(
+      "span",
+      "decision-label",
+      item.read_status === "article_read"
+        ? "Возможное влияние · при выполнении условий"
+        : "Сначала проверить источник",
+    ),
+  );
+  content.append(
+    p(
+      decision.impact ||
+        "Для оценки влияния нужны содержание источника и данные компании.",
+      "decision-impact",
+    ),
+  );
+  content.append(
+    add(
+      node("div", "decision-action"),
+      node("span", "decision-label", "Следующий шаг · " + activeRoleName()),
+      p(
+        decision.action ||
+          "Установите связь события с операциями или договорами компании.",
+      ),
+    ),
+  );
+  const basis = detail(
+    "Условия и основания",
+    p(decision.condition || "Применимость к компании требует проверки."),
+    p(
+      decision.why ||
+        item.reasons?.slice(0, 2).join(". ") ||
+        "Причина отбора требует уточнения.",
+      "caption",
+    ),
+  );
+  if (factor) {
+    if (factor.value.length > 240)
+      basis.append(node("blockquote", "quote", factor.value));
+    basis.append(
+      button("Посмотреть профиль компании", () => go("company"), "text-button"),
+    );
+  }
+  if (decision.missing_company_data?.length)
+    basis.append(
+      p(
+        "Не хватает: " + decision.missing_company_data.join("; ") + ".",
+        "caption",
+      ),
+    );
+  content.append(basis);
+  return content;
+}
+
 function renderSearchNews(item) {
   const c = node("article", "search-hit");
   c.dataset.newsId = item.news_id;
@@ -288,7 +562,7 @@ function renderSearchNews(item) {
         ? "Текст прочитан"
         : "Только заголовок — не подтверждение",
     ),
-    p(item.decision?.why || "Связь с компанией нужно проверить.", "fine-print"),
+    renderDecisionSignal(item),
   );
   if (item.excerpt)
     c.append(
@@ -652,6 +926,152 @@ function researchScopeNote() {
       "Агент проверяет контекст компании и материалы банка, ищет внешние основания по вопросу, сопоставляет их и проверяет вывод. Рынок, конкуренты и продукты изучаются, когда это нужно для ответа. При пробеле агент меняет поиск или задаёт уточнение. Полнота анализа зависит от доступных источников.",
     ),
   );
+}
+
+function continueResearch(job, question, mode) {
+  return startResearch(question, {
+    parent_id: job.run_id,
+    context_mode: mode,
+    planning_days: job.planning_days || 30,
+    news_days: job.news_days || 7,
+    public_search: job.public_search,
+    bank_document_id: job.bank_document_id || null,
+    job_title: activeRoleName(),
+  });
+}
+
+function renderResearchContinuation(job) {
+  const c = card("research-continuation");
+  c.id = "research-continuation";
+  c.append(node("h2", "", "Продолжить исследование"));
+  const previous = job.context_version || {
+    profile_version: job.result.profile_version,
+    context_revision: job.result.narrative?.context_revision || 0,
+  };
+  const current = {
+    profile_version: S.snapshot.profile.version,
+    context_revision: S.snapshot.context?.revision || 0,
+  };
+  const changed =
+    previous.profile_version !== current.profile_version ||
+    previous.context_revision !== current.context_revision;
+  c.append(
+    p(
+      "В отчёте: профиль v" +
+        previous.profile_version +
+        ", контекст v" +
+        previous.context_revision +
+        ". Сейчас: профиль v" +
+        current.profile_version +
+        ", контекст v" +
+        current.context_revision +
+        ".",
+      "caption",
+    ),
+  );
+  if (changed)
+    c.append(
+      box(
+        "Профиль компании изменился. Для новых документов и исправленных данных выберите пересчёт по актуальному профилю.",
+        "amber",
+      ),
+    );
+  c.append(
+    p(
+      "Новости: " +
+        (job.news_days || 7) +
+        " дней · планирование: " +
+        job.planning_days +
+        " дней. Оба режима создают новый отчёт и сохраняют ссылку на исходный.",
+      "caption",
+    ),
+  );
+  const form = node("form"),
+    input = node("textarea", "question-input");
+  input.id = "follow-up-question";
+  input.placeholder =
+    "Что проверить глубже? Для пересчёта можно оставить исходный вопрос.";
+  input.maxLength = 1500;
+  input.rows = 2;
+  input.setAttribute("aria-label", "Уточняющий вопрос");
+  form.append(input);
+  const suggestions = node("div", "chips");
+  for (const q of job.result.follow_up_questions || [])
+    suggestions.append(
+      button(
+        q,
+        () => {
+          input.value = q;
+          input.focus();
+        },
+        "chip",
+      ),
+    );
+  form.append(suggestions);
+  const actions = node("div", "continuation-actions");
+  const launch = async (mode) => {
+    const question = input.value.trim() || job.question;
+    if (question.length < 12) {
+      input.setCustomValidity(
+        "Опишите вопрос подробнее — хотя бы 12 символов.",
+      );
+      input.reportValidity();
+      input.setCustomValidity("");
+      return;
+    }
+    try {
+      await continueResearch(job, question, mode);
+    } catch (error) {
+      report(error);
+    }
+  };
+  const original = button(
+    "Уточнить исходный разбор",
+    () => launch("original"),
+    changed ? "button" : "button primary",
+  );
+  original.id = "continue-original";
+  const refresh = button(
+    "Пересчитать по актуальным данным",
+    () => launch("current"),
+    changed ? "button primary" : "button",
+  );
+  refresh.id = "continue-current";
+  refresh.disabled = busyDocs();
+  actions.append(
+    add(
+      node("div"),
+      original,
+      p(
+        "Сохранённые документы, контекст и внешние источники исходного отчёта.",
+        "fine-print",
+      ),
+    ),
+  );
+  actions.append(
+    add(
+      node("div"),
+      refresh,
+      p(
+        "Актуальный профиль и включённые файлы. Внешние источники сохраняются, старые внутренние сведения и выводы пересобираются.",
+        "fine-print",
+      ),
+    ),
+  );
+  form.append(actions);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    launch("original");
+  });
+  if (busyDocs())
+    form.append(
+      p(
+        "Файлы ещё обрабатываются. Пересчёт станет доступен после обработки.",
+        "caption",
+      ),
+    );
+  c.append(form);
+  return c;
 }
 
 function renderResearchWorkflow(job) {

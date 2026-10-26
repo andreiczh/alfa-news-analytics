@@ -13,6 +13,7 @@ import re
 from .news_ranking import company_context, duplicate_story, score_item, topics_for
 from .decision_support import news_interpretation
 from .settings import utcnow
+from .periods import period_intent
 
 
 STOP_WORDS = "что какие какой какая как почему зачем если когда нужно нужны может могут наша нашей нашего компанию компании бизнес бизнеса роль руководителя узнать найти покажи расскажи влияние повлияет повлиять cfo ceo coo cmo cco".split()
@@ -146,6 +147,7 @@ class WorkspaceSearch:
             "query": query,
             "scope": scope,
             "days": days,
+            "period_intent": period_intent(query, days),
             "company_id": company_id,
             "role": role,
             "as_of": utcnow().isoformat(),

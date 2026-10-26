@@ -16,13 +16,14 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from .bank_library import BankLibrary, terms
 from .gateway import GatewayError
-from .public_sources import PublicSourceError, TOPICS, page_source
+from .public_sources import PublicSourceError, page_source
 from .identity import role_for
 from .news import news_source
 from .news_sources import article_matches, article_publication
 from .settings import utcnow
 from .storage import Conflict, NotFound, new_id
 from .analysis_policy import planning_policy, POLICY_VERSION
+from .periods import period_intent
 from .personalization import is_bank_company
 from .research_rules import RULES, BANK_ROLES, COMPANY_ROLES
 from .narrative import (
@@ -59,10 +60,13 @@ class ResearchRequest(Strict):
     source_urls: list[str] = Field(default_factory=list, max_length=3)
     news_text: str = Field(default="", max_length=10000)
     parent_id: str | None = Field(default=None, max_length=100)
+    context_mode: Literal["original", "current"] = "original"
     bank_document_id: str | None = Field(default=None, max_length=100)
     news_item_id: str | None = Field(default=None, pattern=r"^news_[a-f0-9]{24}$")
     seed_news_ids: list[str] = Field(default_factory=list, max_length=3)
     planning_days: Literal[7, 30, 90, 365] = 30
+    news_days: Literal[7, 30, 90] = 7
+    periods_confirmed: bool = False
     allow_partial: bool = True
 
 
@@ -703,6 +707,10 @@ class ResearchService:
         raw = request.model_dump(mode="json")
         if not request.seed_news_ids:
             raw.pop("seed_news_ids", None)
+        # Preserve idempotent retries from clients predating these optional fields.
+        for key, default in (("context_mode", "original"), ("news_days", 7), ("periods_confirmed", False)):
+            if raw.get(key) == default:
+                raw.pop(key, None)
         digest = hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()
         with self.store.connection() as db:
             old = db.execute(
@@ -723,7 +731,10 @@ class ResearchService:
             ).fetchone()[0]
         if pending >= 3 or total >= 20:
             raise Conflict("research_queue_limit")
-        if not request.parent_id and any(
+        periods = period_intent(request.question, request.news_days, request.planning_days)
+        if periods["needs_confirmation"] and not request.periods_confirmed:
+            raise Conflict("research_period_confirmation_required")
+        if (not request.parent_id or request.context_mode == "current") and any(
             f["status"] in {"QUEUED", "RUNNING", "DEFERRED_BUDGET"}
             for f in self.service.workspace.files(request.company_id)
         ):
@@ -733,7 +744,7 @@ class ResearchService:
         parent = self.get(request.parent_id) if request.parent_id else None
         if parent and parent["company_id"] != request.company_id:
             raise Conflict("follow_up_company_mismatch")
-        if parent:
+        if parent and request.context_mode == "original":
             previous_request = self._row(request.parent_id)["input"]
             snapshot = self.service.workspace.load_snapshot(
                 previous_request["snapshot_id"], request.company_id
@@ -754,16 +765,27 @@ class ResearchService:
         raw["role"] = request.role or (role_for(request.job_title) if request.job_title else prefs["role"])
         raw.update(
             snapshot_id=snapshot["snapshot_id"],
+            context_mode=request.context_mode if parent else "current",
+            profile_version=snapshot["profile"]["version"],
+            context_revision=snapshot.get("context", {}).get("revision", 0),
+            news_days=request.news_days,
+            periods_confirmed=request.periods_confirmed,
+            periods=periods,
             as_of=utcnow().isoformat(),
             company_name=company_name,
             bank_company=is_bank_company(company_name, snapshot),
             fresh_news_requested=fresh_news_intent(request.question),
         )
-        if parent and parent.get("result"):
+        if parent and request.context_mode == "original" and parent.get("result"):
             raw["previous_summary"] = parent["result"]["summary"]
         sources = []
         if parent:
             sources = [{**s, "provided_for_current_question": False} for s in parent["sources"]]
+            if request.context_mode == "current":
+                # Only external evidence survives a refresh. Old internal chunks,
+                # fields and the previous interpretation must not leak into it.
+                external_kinds = {"bank_claim", "bank_excerpt", "public_page", "search_lead", "url_to_read", "user_news"}
+                sources = [s for s in sources if s["kind"] in external_kinds and not s["source_id"].startswith("company_website")]
         news_ids = list(
             dict.fromkeys(([request.news_item_id] if request.news_item_id else []) + request.seed_news_ids)
         )
@@ -859,7 +881,13 @@ class ResearchService:
                 ),
             )
         self.store.audit(
-            run_id, "PLAN", "queued", {"company_id": request.company_id, "parent_id": request.parent_id}
+            run_id, "PLAN", "queued", {
+                "company_id": request.company_id, "parent_id": request.parent_id,
+                "context_mode": raw["context_mode"], "snapshot_id": raw["snapshot_id"],
+                "profile_version": raw["profile_version"], "context_revision": raw["context_revision"],
+                "news_days": request.news_days, "planning_days": request.planning_days,
+                "periods_confirmed": request.periods_confirmed,
+            }
         )
         return self.get(run_id)
 
@@ -937,6 +965,17 @@ class ResearchService:
         )
         if review and review["result_hash"] != digest:
             review = None
+        context_version = {
+            "profile_version": row["input"].get("profile_version"),
+            "context_revision": row["input"].get("context_revision"),
+        }
+        if context_version["profile_version"] is None:
+            # Backwards-compatible metadata for existing reports, without mutation.
+            frozen = self.service.workspace.load_snapshot(row["input"]["snapshot_id"], row["company_id"])
+            context_version = {
+                "profile_version": frozen["profile"]["version"],
+                "context_revision": frozen.get("context", {}).get("revision", 0),
+            }
         return {
             "run_id": row["id"],
             "company_id": row["company_id"],
@@ -948,7 +987,12 @@ class ResearchService:
             "created_at": row["created_at"],
             "favorite": bool(row["favorite"]),
             "parent_id": row["input"].get("parent_id"),
+            "context_mode": row["input"].get("context_mode", "original" if row["input"].get("parent_id") else "current"),
+            "profile_snapshot_id": row["input"]["snapshot_id"],
+            "context_version": context_version,
+            "bank_document_id": row["input"].get("bank_document_id"),
             "public_search": row["input"]["public_search"],
+            "news_days": row["input"].get("news_days", 7),
             "planning_days": row["input"].get("planning_days", 30),
             "result": row["result"],
             "sources": state["sources"],
@@ -1256,6 +1300,12 @@ class ResearchEngine:
                 "provided_news_source_ids": request.get("seed_news_ids", []),
                 "fresh_news_requested": request.get("fresh_news_requested", False),
                 "as_of": request["as_of"],
+                "analysis_policy": planning_policy(request["as_of"], request.get("planning_days", 30)),
+                "news_window_days": request.get("news_days", 7),
+                "question_periods": request.get("periods"),
+                "periods_explicitly_confirmed": request.get("periods_confirmed", False),
+                "period_instruction": "Используй выбранное окно новостей и даты start/end из analysis_policy. Подтверждённые пользователем настройки имеют приоритет над несовпадающим периодом в формулировке вопроса; явно называй фактический горизонт и не переименовывай его в календарную границу.",
+                "news_window_scope": "Окно автоматической подборки новостей; материалы банка, компании и явно добавленные источники имеют собственные даты. Полнота за период не гарантирована.",
                 "public_search_enabled": request["public_search"],
                 "sources": sources,
                 "observations": state["observations"][-6:],
@@ -1346,7 +1396,7 @@ class ResearchEngine:
                     count = len(items)
                 elif action.tool == "bank":
                     items = self.research.bank.search(
-                        (action.query or request["question"]) + " " + TOPICS[action.topic],
+                        action.query or request["question"],
                         document_id=request.get("bank_document_id"),
                     )
                     if action.topic == "rates" and request.get("bank_document_id") in {None, "bank_case_04"}:
@@ -1384,6 +1434,7 @@ class ResearchEngine:
                         request.get("role") or role_for(request["job_title"]),
                         action.topic,
                         strict_topic=bool(request.get("news_item_id")),
+                        days=request.get("news_days", 7),
                     )
                     for item in items:
                         item["provided_for_current_question"] = True
@@ -1537,6 +1588,10 @@ class ResearchEngine:
                     draft = assemble_research(selected, ledger, request, snapshot)
                     narrative_payload = {
                         "question": request["question"],
+                        "news_window_days": request.get("news_days", 7),
+                        "question_periods": request.get("periods"),
+                        "periods_explicitly_confirmed": request.get("periods_confirmed", False),
+                        "period_instruction": context["period_instruction"],
                         "company": {k: v for k, v in context["company"].items() if k != "features"},
                         "job_title": request["job_title"],
                         "role": request["role"],

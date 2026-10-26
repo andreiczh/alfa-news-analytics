@@ -463,8 +463,8 @@ class NewsService:
                 logging.getLogger(__name__).error("News queue unavailable (%s)", type(error).__name__)
             await asyncio.sleep(1)
 
-    async def for_research(self, company_id, tenant, snapshot, role, topic, *, strict_topic=False):
-        context = company_context({**snapshot, "context": self.service.workspace.context(company_id)})
+    async def for_research(self, company_id, tenant, snapshot, role, topic, *, strict_topic=False, days=7):
+        context = company_context(snapshot)
         context["name"] = context["name"] or company_id
         context["anonymous"] |= self.service.workspace.case.exists(company_id)
         job_id = self._enqueue(tenant, company_id, context, role)
@@ -478,7 +478,7 @@ class NewsService:
             await asyncio.sleep(1)
         if not row or row["status"] != "SUCCEEDED":
             raise PublicSourceError("news_sources_unavailable")
-        items, _ = rank_news(json.loads(row["result_json"])["items"], context, role, utcnow(), 7)
+        items, _ = rank_news(json.loads(row["result_json"])["items"], context, role, utcnow(), days)
         topic_map = {
             "rates": {"rates", "funding"},
             "inflation": {"inflation"},

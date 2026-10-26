@@ -11,6 +11,23 @@ def terms(text):
     return {w[:5] if len(w) > 5 else w[:4] for w in re.findall(r"[a-zа-яё]+", text.casefold()) if len(w) > 3}
 
 
+# Generic instructions and publisher names do not establish subject relevance.
+# Keep `terms` unchanged: it is also used by source/citation checks elsewhere.
+BANK_STOP_TERMS = terms(
+    "что какие какой какая как почему зачем когда если нужно нужны наша нашей нашего "
+    "компания компании компанию бизнес бизнеса роль руководитель директор финансовый "
+    "покажи расскажи найди найти объясни проанализируй анализ исследование материал материалы "
+    "банка банки альфа источник источники новость новости обзор обзоры мнение позиция "
+    "влияние влияет повлияет оценить оценка данные информация вопрос сейчас последние свежие "
+    "происходит изменилось дней день неделю недели месяц месяца месяцев года год квартал "
+    "период горизонт планирование cfo ceo coo cmo cco"
+)
+
+
+def bank_query_terms(query):
+    return terms(query) - BANK_STOP_TERMS
+
+
 class BankLibrary:
     def __init__(self, root):
         path = root / "data/bank_library.json"
@@ -20,7 +37,9 @@ class BankLibrary:
         return [{k: v for k, v in d.items() if k != "pages"} for d in self.documents]
 
     def search(self, query, limit=6, document_id=None):
-        wanted = terms(query)
+        wanted = bank_query_terms(query)
+        if not wanted or limit < 1:
+            return []
         ranked = []
         for document in self.documents:
             if document_id and document["document_id"] != document_id:
@@ -47,11 +66,12 @@ class BankLibrary:
                     narrative = sum(len(line) for line in text.splitlines() if len(line) >= 45) / len(text)
                     if narrative < 0.45:
                         continue
-                    score = len(terms(text) & wanted) + narrative * 2
-                    if not score:
+                    matches = len(terms(text) & wanted)
+                    if not matches:
                         continue
                     historical = (document.get("published_at") or "2026")[:4] < "2026"
-                    ranked.append((score - (3 if historical else 0), document, page, index, text))
+                    # Content matches always outrank readability/date bonuses.
+                    ranked.append(((matches, not historical, narrative), document, page, index, text))
         ranked.sort(key=lambda x: x[0], reverse=True)
         result, per_document = [], {}
         for score, doc, page, index, text in ranked:

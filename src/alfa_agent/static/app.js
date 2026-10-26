@@ -313,6 +313,8 @@ const ERRORS = {
   unsupported_public_topic: "Эта тема поиска пока не поддерживается.",
   research_limit:
     "Достигнут лимит шагов исследования. Сузьте вопрос и повторите.",
+  research_period_confirmation_required:
+    "Периоды в вопросе и настройках различаются. Обновите страницу и подтвердите период новостей и горизонт планирования.",
   rate_limited: "API временно ограничил частоту запросов. Повторите позже.",
   provider_unavailable: "Организаторский API временно недоступен.",
   paid_queue_user_limit:
@@ -628,6 +630,20 @@ function composer(compact = false) {
   news.value = S.draft.news;
   news.addEventListener("input", () => (S.draft.news = news.value));
   advanced.append(field("Текст новости", news));
+  const periodControls = node("div", "question-periods");
+  const publication = node("select");
+  publication.id = "research-news-days";
+  publication.setAttribute("data-news-period", "");
+  for (const days of [7, 30, 90]) {
+    const option = node("option", "", days + " дней");
+    option.value = String(days);
+    publication.append(option);
+  }
+  publication.value = String(S.newsDays);
+  publication.addEventListener("change", () =>
+    setNewsPeriod(publication.value),
+  );
+  periodControls.append(field("Подбирать новости за", publication));
   const planning = node("select");
   planning.id = "research-horizon";
   for (const days of [7, 30, 90, 365]) {
@@ -638,8 +654,16 @@ function composer(compact = false) {
   planning.value = String(S.draft.planningDays || 30);
   planning.addEventListener("change", () => {
     S.draft.planningDays = Number(planning.value);
+    syncPeriodControls();
   });
-  form.append(field("Горизонт планирования", planning));
+  periodControls.append(field("Планирование вперёд", planning));
+  form.append(
+    periodControls,
+    p(
+      "Период ограничивает даты доступной подборки новостей. Документы компании, материалы банка и добавленные источники сохраняют собственные даты.",
+      "fine-print",
+    ),
+  );
   form.append(detail("Добавить новость или первоисточники", advanced));
   const checkbox = node("input");
   checkbox.type = "checkbox";
@@ -796,9 +820,7 @@ function renderNews(container) {
   }
   period.value = S.newsDays;
   period.addEventListener("change", () => {
-    S.newsDays = Number(period.value);
-    S.newsExpanded = false;
-    loadNews(false);
+    setNewsPeriod(period.value);
   });
   add(controls, field("Период публикации", period));
   container.append(controls);
@@ -891,22 +913,7 @@ function renderNews(container) {
             : ""),
         "caption",
       ),
-      p(item.focus, "news-focus"),
-      node("h4", "", "Почему это важно для вашей компании"),
-      p(
-        item.decision?.why || item.reasons.slice(0, 2).join(". "),
-        "fine-print",
-      ),
-      node("h4", "", "Возможное влияние"),
-      p(
-        item.decision?.impact ||
-          "Канал влияния по имеющимся источникам не установлен.",
-      ),
-      p(
-        item.decision?.condition ||
-          "Проверьте применимость события к компании.",
-        "condition",
-      ),
+      renderDecisionSignal(item),
       item.decision?.signal
         ? badge(item.decision.signal, item.decision.urgent ? "red" : "")
         : null,
@@ -1157,6 +1164,18 @@ async function startResearch(question, extra = {}) {
   S.starting = true;
   const company = S.company.company_id;
   try {
+    const periods = extra.periods_confirmed
+      ? {
+          news_days: extra.news_days ?? S.newsDays,
+          planning_days: extra.planning_days ?? S.draft.planningDays ?? 30,
+          periods_confirmed: true,
+        }
+      : await chooseQuestionPeriods(
+          question,
+          extra.news_days ?? S.newsDays,
+          extra.planning_days ?? S.draft.planningDays ?? 30,
+        );
+    if (!periods || S.company?.company_id !== company) return;
     const request = {
       company_id: company,
       role: S.role,
@@ -1166,6 +1185,7 @@ async function startResearch(question, extra = {}) {
       public_search: S.draft.public,
       bank_document_id: S.draft.bankDocumentId || null,
       ...extra,
+      ...periods,
     };
     const job = await api("/api/research", {
       method: "POST",
@@ -1181,6 +1201,7 @@ async function startResearch(question, extra = {}) {
       urls: "",
       public: request.public_search,
       jobTitle: request.job_title,
+      planningDays: request.planning_days,
     };
     await refreshHistory();
     render();
@@ -1396,6 +1417,16 @@ function renderResult(main, j) {
     ),
   );
   title.append(actions);
+  title.append(
+    p(
+      "Подборка новостей: " +
+        (j.news_days || 7) +
+        " дней · планирование: " +
+        j.planning_days +
+        " дней. Даты источников указаны отдельно.",
+      "caption",
+    ),
+  );
   main.append(title);
   if (j.parent_id)
     main.append(
@@ -1570,57 +1601,7 @@ function renderResult(main, j) {
     detail("Ограничения и дата банковского взгляда", list(r.limitations)),
   );
   main.append(gaps);
-  const follow = card();
-  add(
-    follow,
-    node("h2", "", "Углубить исследование"),
-    p("Уточнение сохранит источники и контекст этого разбора.", "fine-print"),
-  );
-  const form = node("form"),
-    input = node("textarea", "question-input");
-  input.id = "follow-up-question";
-  input.placeholder = "Что проверить глубже?";
-  input.required = true;
-  input.minLength = 12;
-  input.maxLength = 1500;
-  input.rows = 2;
-  input.setAttribute("aria-label", "Уточняющий вопрос");
-  form.append(input);
-  const suggestions = node("div", "chips");
-  r.follow_up_questions.forEach((q) =>
-    suggestions.append(
-      button(
-        q,
-        () =>
-          startResearch(q, {
-            parent_id: j.run_id,
-            planning_days: j.planning_days,
-            public_search: j.public_search,
-            job_title: activeRoleName(),
-          }),
-        "chip",
-      ),
-    ),
-  );
-  form.append(suggestions);
-  const send = node("button", "button primary", "Уточнить");
-  send.type = "submit";
-  form.append(send);
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    try {
-      await startResearch(input.value, {
-        parent_id: j.run_id,
-        planning_days: j.planning_days,
-        public_search: j.public_search,
-        job_title: activeRoleName(),
-      });
-    } catch (error) {
-      report(error);
-    }
-  });
-  follow.append(form);
-  main.append(follow);
+  main.append(renderResearchContinuation(j));
   main.append(detail("Этапы и план исследования", renderResearchWorkflow(j)));
   const bottom = card();
   const feedback = add(
@@ -1787,6 +1768,23 @@ function exportReport(j) {
     j.company_name + " · " + j.job_title + " · " + date(r.as_of),
     "",
     "Статус: " + statusText(j.status),
+    "Подборка новостей: " +
+      (j.news_days || 7) +
+      " дней. Горизонт планирования: " +
+      j.planning_days +
+      " дней.",
+    "Контекст: " +
+      (j.context_mode === "original"
+        ? "сохранённый исходный"
+        : "актуальный на момент запуска") +
+      "; профиль v" +
+      (j.context_version?.profile_version ?? r.profile_version) +
+      ", контекст v" +
+      (j.context_version?.context_revision ??
+        r.narrative?.context_revision ??
+        0) +
+      ".",
+    j.parent_id ? "Исходное исследование: " + j.parent_id : "",
     j.quality_gate?.status === "reviewed_by_user"
       ? "Просмотрено пользователем. Независимая финансовая экспертиза не подтверждена."
       : "ЧЕРНОВИК. Перед использованием выводов требуется проверка источников и допущений.",

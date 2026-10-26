@@ -253,6 +253,57 @@ def company_context(snapshot):
     competitors = [
         x.strip(' «»".;') for x in re.split(r"[,;\n]", competitor_text) if 2 <= len(x.strip()) <= 80
     ]
+    from .research_rules import RULES
+
+    labels = {key: label for rule in RULES.values() for key, label in rule["needs"]}
+    feature_topics = {
+        "rate_type": ["rates", "funding"], "floating_debt_rub": ["rates", "funding"],
+        "net_interest_income": ["rates", "earnings"], "repricing_gap": ["rates"],
+        "deposit_beta": ["rates", "funding"], "funding_structure": ["funding"],
+        "liquidity_buffer": ["funding"], "foreign_currency_exposure": ["fx"],
+        "currency_exposure": ["fx"], "export_share": ["fx", "demand"], "import_share": ["fx", "inflation"],
+        "capex_planned_rub": ["rates", "funding", "strategy"],
+        "receivables_days": ["credit", "funding"], "inventory_days": ["operations", "funding"],
+    }
+    factors = []
+    for feature in good:
+        value = feature.get("text_value")
+        if not value and feature.get("numeric_value") is not None:
+            value = str(feature["numeric_value"]) + (" " + feature["unit"] if feature.get("unit") else "")
+        if not value or re.search(r"не предостав|неизвест|не указан|нет данн|unknown|not provided", value, re.I):
+            continue
+        topics = feature_topics.get(feature["name"], [])
+        if topics:
+            factors.append({
+                "key": feature["name"], "label": labels.get(feature["name"], {
+                    "rate_type": "Тип ставки по долгу", "floating_debt_rub": "Плавающий долг",
+                    "capex_planned_rub": "Инвестиционные планы",
+                }.get(feature["name"], feature["name"])),
+                "value": value, "topics": topics, "origin": "company_profile",
+                "source_refs": feature.get("source_refs", []),
+            })
+    for key, field in fields.items():
+        value = field.get("value", "")
+        topics = set(topics_for({"title": value, "excerpt": ""})) | set(feature_topics.get(key, []))
+        if re.search(r"ставк|переоцен|процентн", value, re.I):
+            topics.add("rates")
+        if topics and not re.search(r"не предостав|неизвест|не указан|нет данн|не отслеж|не интерес", value, re.I):
+            factors.append({"key": key, "label": field["label"], "value": value,
+                            "topics": sorted(topics), "origin": "user_confirmed", "source_refs": [],
+                            "synthetic": bool(field.get("synthetic"))})
+    synthetic = snapshot.get("metadata", {}).get("source") == "synthetic_demo" or snapshot.get("context", {}).get("synthetic", False)
+    for factor in factors:
+        factor["synthetic"] = bool(synthetic or factor.get("synthetic"))
+    grouped = {}
+    for factor in factors:
+        grouped.setdefault(factor["key"], []).append(factor)
+    factor_conflicts = [
+        {"key": key, "label": values[0]["label"], "topics": sorted({t for f in values for t in f["topics"]})}
+        for key, values in grouped.items()
+        if len({" ".join(f["value"].casefold().split()) for f in values}) > 1
+    ]
+    conflict_keys = {f["key"] for f in factor_conflicts}
+    factors = [f for f in factors if f["key"] not in conflict_keys]
     return {
         "priority_topics": sorted(priority_topics),
         "priority_labels": priority_labels,
@@ -262,6 +313,8 @@ def company_context(snapshot):
         "industry": industry,
         "bank": bank,
         "exposure_topics": sorted(exposure_topics),
+        "company_factors": factors,
+        "factor_conflicts": factor_conflicts,
         "website": snapshot.get("context", {}).get("website", ""),
         "snapshot_id": snapshot.get("snapshot_id"),
         "profile_version": snapshot.get("profile", {}).get("version"),

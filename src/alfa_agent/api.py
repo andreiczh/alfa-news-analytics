@@ -32,6 +32,7 @@ from .accounts import AuthError, AuthLimited
 from .operations import HttpMetrics
 from .identity import current_principal, create_principal, restore_principal, PUBLIC_DEMO_RUNS
 from .research import ResearchRequest, ResearchAnswer
+from .periods import period_intent, NEWS_DAYS, PLANNING_DAYS
 from .personalization import PreferencesUpdate, ROLE_NAMES
 from .company_dialogue import ContextMessage, ContextConfirm
 from . import __version__
@@ -903,6 +904,16 @@ def create_app(settings=None):
             media_type="application/json",
             headers={"Content-Disposition": 'attachment; filename="insight.json"'},
         )
+
+    @app.get("/api/research/periods")
+    def research_periods(
+        q: str = Query(min_length=2, max_length=1500),
+        news_days: int = Query(default=7, ge=1, le=90),
+        planning_days: int = Query(default=30, ge=1, le=365),
+    ):
+        if news_days not in NEWS_DAYS or planning_days not in PLANNING_DAYS:
+            raise HTTPException(422, "unsupported_research_period")
+        return period_intent(q, news_days, planning_days)
 
     @app.post("/api/research", status_code=202)
     def start_research(payload: ResearchRequest, idempotency_key: str = Header(min_length=1, max_length=100)):

@@ -340,10 +340,7 @@ function renderDecisionOverview() {
       row,
       p(item.publisher + " · " + date(item.published_at), "caption"),
       node("h3", "", item.title),
-      p(
-        item.decision?.why || item.reasons?.slice(0, 2).join(". "),
-        "digest-why",
-      ),
+      renderDecisionSignal(item),
     );
     add(
       row,
@@ -355,6 +352,7 @@ function renderDecisionOverview() {
             : "Только заголовок — требуется проверка",
         ),
         saveNewsButton(item),
+        button("Разобрать влияние", () => researchNews(item), "text-button"),
         button(
           "Подробнее",
           () => {
@@ -1186,7 +1184,7 @@ function renderNarrative(main, job) {
         ),
         button(
           "Обновить исследование для текущего профиля",
-          () => startResearch(job.question, { public_search: true }),
+          () => continueResearch(job, job.question, "current"),
           "button small",
         ),
       ),
