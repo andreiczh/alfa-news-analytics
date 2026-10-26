@@ -59,7 +59,12 @@ function renderQuestionPeriods() {
   return controls;
 }
 
-async function chooseQuestionPeriods(question, newsDays, planningDays) {
+async function chooseQuestionPeriods(
+  question,
+  newsDays,
+  planningDays,
+  stillCurrent = () => true,
+) {
   const intent = await api(
     "/api/research/periods?" +
       new URLSearchParams({
@@ -68,6 +73,7 @@ async function chooseQuestionPeriods(question, newsDays, planningDays) {
         planning_days: String(planningDays),
       }),
   );
+  if (!stillCurrent()) return null;
   if (!intent.needs_confirmation)
     return {
       news_days: newsDays,
@@ -253,10 +259,19 @@ async function runWorkspaceSearch(scope = "all", silent = false) {
   updateWorkspaceSearch(scope);
   try {
     if (scope === "all" && !silent) {
+      const selectedNewsDays = S.newsDays;
+      const selectedPlanningDays = S.draft.planningDays || 30;
       const periods = await chooseQuestionPeriods(
         query,
-        S.newsDays,
-        S.draft.planningDays || 30,
+        selectedNewsDays,
+        selectedPlanningDays,
+        () =>
+          S[key] === state &&
+          state.requestId === requestId &&
+          cid === S.company?.company_id &&
+          role === S.role &&
+          S.newsDays === selectedNewsDays &&
+          (S.draft.planningDays || 30) === selectedPlanningDays,
       );
       if (
         !periods ||

@@ -1417,7 +1417,7 @@ function renderResult(main, j) {
     ),
   );
   title.append(actions);
-  title.append(
+  title.firstElementChild.append(
     p(
       "Подборка новостей: " +
         (j.news_days || 7) +
